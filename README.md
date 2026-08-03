@@ -134,6 +134,35 @@ Resolume, and its console table is a maintained second copy of
 and come from the offline harness in this repository.
 
 <!-- downloads:start -->
+
+## Download
+
+**[v0.1.0](https://github.com/stoatworks-labs/nesolume/releases/tag/v0.1.0)** — prebuilt for macOS and Windows. Pick your platform:
+
+<details>
+<summary><b>macOS</b> — Universal (Apple Silicon + Intel)</summary>
+
+| Build | Download | Size |
+| --- | --- | --- |
+| Universal (Apple Silicon + Intel) · .dmg disk image | [`nesolume-0.1.0-macos-universal.dmg`](https://github.com/stoatworks-labs/nesolume/releases/download/v0.1.0/nesolume-0.1.0-macos-universal.dmg) | 185 KB |
+| Universal (Apple Silicon + Intel) · .zip archive | [`nesolume-macos-universal.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-macos-universal.zip) | 145 KB |
+| Universal (Apple Silicon + Intel) · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`nesolume-ofx-macos-universal.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-ofx-macos-universal.zip) | 224 KB |
+
+</details>
+
+<details>
+<summary><b>Windows</b> — x64</summary>
+
+| Build | Download | Size |
+| --- | --- | --- |
+| x64 · .exe installer | [`nesolume-0.1.0-windows-x86_64-setup.exe`](https://github.com/stoatworks-labs/nesolume/releases/download/v0.1.0/nesolume-0.1.0-windows-x86_64-setup.exe) | 212 KB |
+| x64 · .zip archive | [`nesolume-windows-x86_64.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-windows-x86_64.zip) | 104 KB |
+| x64 · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`nesolume-ofx-windows-x86_64.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-ofx-windows-x86_64.zip) | 65 KB |
+
+</details>
+
+All builds, checksums and release notes: [github.com/stoatworks-labs/nesolume/releases](https://github.com/stoatworks-labs/nesolume/releases).
+
 <!-- downloads:end -->
 
 ## OpenFX — Resolve, Vegas, Nuke, Natron
