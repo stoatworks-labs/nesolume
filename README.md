@@ -14,6 +14,8 @@ Retro console video hardware for [Resolume](https://resolume.com) Arena and
 Avenue, as an FFGL effect: the raster, the palette, the attribute cells — and
 the ways they failed.
 
+**Video:** [What it does, in 52 seconds](https://www.youtube.com/watch?v=a3zUwJ6kPfM)
+
 ![NES: the 2C02 palette with dither and attribute clash](docs/nes.png)
 
 <sub>The harness test card through the NES: posterised into the 2C02 palette,

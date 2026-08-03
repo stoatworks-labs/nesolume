@@ -497,6 +497,7 @@ mountDemo({
     'Retro console video hardware, modelled as constraints rather than drawn as a look: a raster with not many lines, a palette with not many colours, attribute cells that force neighbours to share them — and the ways all three fail.',
   repo: 'https://github.com/stoatworks-labs/nesolume',
   page: 'https://stoatworks-labs.com/software/nesolume/',
+  video: 'https://www.youtube.com/watch?v=a3zUwJ6kPfM',
 
   needFloat: true,
   showBackdrop: true,
