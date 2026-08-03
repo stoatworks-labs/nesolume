@@ -489,6 +489,20 @@ float NESolume::GetFloatParameter( unsigned int index )
 	return params[ index ];
 }
 
+FFResult NESolume::SetTextParameter( unsigned int index, const char* )
+{
+	// The About text line is display-only, but the SDK's FF_INSTANTIATE_GL
+	// pushes every declared default into a fresh instance — including this
+	// one, through here — and destroys the instance on the first FF_FAIL. The
+	// base SetTextParameter returns FF_FAIL, so without this the plugin
+	// silently fails to load in Resolume. See the fleet's instantiate-sweep
+	// trap.
+	if( index == PT_ABOUT_FIRST )
+		return FF_SUCCESS;
+
+	return CFFGLPlugin::SetTextParameter( index, nullptr );
+}
+
 char* NESolume::GetTextParameter( unsigned int index )
 {
 	// The host is handed a bare pointer, so the string is kept as a member
