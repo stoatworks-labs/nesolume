@@ -17,6 +17,20 @@ Read `AGENTS.md` before changing the quantise or display shaders.
   colour of its console, even with corruption at full)
 - Dead controls: `python3 tools/sweep.py` (every parameter must move pixels)
 
+## OpenFX build
+- `source/ofx/NESolumeOFX.cpp` → `build/NESolume.ofx.bundle` (target
+  `NESolumeOFX`, `-DBUILD_OFX=OFF` to skip) for Resolve/Vegas/Nuke/Natron.
+  Consoles.cpp links straight from source; the four GPU stages are mirrored
+  on the CPU. Change a stage's GLSL, change the matching function there.
+- OFX time is the timeline frame; seconds = t / frame rate, so the glitch
+  clock is deterministic against the edit.
+- Smoke test: `../resolume-ofx-bridge/build/ofxprobe --dir build --render com.stoatworks.nesolume --size 640x360 --out /tmp/ne.bmp`
+- Identity proof: add `--set mix=0` → 0 bytes differ.
+- Preset proof: `--edit preset=N` must render byte-identically to `--edit`ing
+  the values from Presets.h by hand.
+- OFX SDK subset (BSD-3) vendored under `external/openfx`.
+- Install for Resolve: copy the bundle into `/Library/OFX/Plugins`.
+
 ## Notes
 - Four shader stages; the effect is the GLSL, the C++ is host glue and the
   console table.

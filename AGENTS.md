@@ -193,6 +193,21 @@ automates the parameters over the sequence — same conventions as the sibling
 harnesses: **stdout is the video**, so anything conversational goes to stderr,
 and the vertical flips on the way in and out do **not** cancel.
 
+## 5b. The OpenFX build
+
+`source/ofx/NESolumeOFX.cpp` mirrors the four GPU stages on the CPU for
+Resolve/Vegas/Nuke/Natron. The console table links from source and has one
+home; the per-pixel machinery is duplicated with edit-both comments. The
+low-res chain (downres, tile means, quantise) is precomputed once per render
+and only the display stage runs in the threaded per-tile loop — do not move
+the chain into `multiThreadProcessImages`, it would recompute per tile.
+
+The hashes are the GLSL formulas in double precision: the two builds agree
+constant for constant, not bit for bit, like every sibling port. Verify with
+ofxprobe (see CLAUDE.md): render, `--set mix=0` identity (0 bytes), and
+`--edit preset=N` against hand-set values (byte-identical). The factory is
+deliberately heap-leaked in `getPluginIDs` — the fleet's exit-teardown trap.
+
 ## 6. What has never been checked
 
 - **It has never been loaded into Resolume.** The bundle is installed to

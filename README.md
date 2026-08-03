@@ -113,6 +113,22 @@ Grouped in the inspector as **Picture**, **Distortion**, **Glitch** and
 Picking one copies its values into the sliders; touching a covered slider
 hands control back to Custom.
 
+## OpenFX — Resolve, Vegas, Nuke, Natron
+
+The same machine model also builds as an OpenFX plugin, so it runs in DaVinci
+Resolve (Edit and Color pages, and Fusion), Vegas Pro, Nuke and Natron. The
+console table is the same code; the four GPU stages are mirrored on the CPU,
+constant for constant, and the glitch clock runs off the timeline frame — so
+any frame renders identically however the host reaches it.
+
+Grab the `nesolume-ofx-*` zip for your platform from the release and copy
+`NESolume.ofx.bundle` into the standard OpenFX folder, then restart the host:
+
+```
+macOS    /Library/OFX/Plugins/
+Windows  C:\Program Files\Common Files\OFX\Plugins\
+```
+
 ## Install
 
 Drop the plugin into Resolume's plugin folder and restart it:
@@ -197,6 +213,10 @@ Not verified:
 - **Never loaded into Resolume.** The parameter groups, the Console and
   Preset dropdowns, and Arena's real texture sizes and premultiplication
   behaviour are all unconfirmed — the harness supplies its own textures.
+- **The OpenFX build renders and proves itself through ofxprobe** (identity
+  at Mix 0 is exact, presets render byte-identically to hand-set values,
+  every output pixel is palette-legal) — but it has never been loaded into a
+  real Resolve.
 - **The Windows build has never been compiled.** No CI yet.
 - **The universal macOS build has been built and `lipo`-verified, never run
   on an Intel machine.**
