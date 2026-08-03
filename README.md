@@ -113,6 +113,29 @@ Grouped in the inspector as **Picture**, **Distortion**, **Glitch** and
 Picking one copies its values into the sliders; touching a covered slider
 hands control back to Custom.
 
+## Try it in your browser
+
+**<https://nesolume-demo.stoatworks-labs.com>**
+
+Not the plugin — the GLSL from `source/shaders/`, copied across unedited and
+run in WebGL2 over clips generated in the page, with the parameters this
+plugin's constructor declares. No install, and nothing you load leaves your
+machine.
+
+All four stages run, at the console raster. Pick the ZX Spectrum, turn
+Attribute Clash to full and drag your own image in to watch the cells argue
+about it — or check the plugin's own claim right there: every glitch control
+at full on a fixed-palette console still never produces a colour the machine
+could not.
+
+It is a port, so it is not evidence about the plugin: a browser is not
+Resolume, and its console table is a maintained second copy of
+`source/Consoles.cpp`. The numbers worth trusting are in [Status](#status)
+and come from the offline harness in this repository.
+
+<!-- downloads:start -->
+<!-- downloads:end -->
+
 ## OpenFX — Resolve, Vegas, Nuke, Natron
 
 The same machine model also builds as an OpenFX plugin, so it runs in DaVinci

@@ -224,6 +224,30 @@ deliberately heap-leaked in `getPluginIDs` — the fleet's exit-teardown trap.
 - Performance figures (0.17 ms/frame at 1080p, 0.56 ms at 4K) come from one
   M4 Max, never from CI — hosted macOS runners have no GPU.
 
+## The browser demo
+
+`demo/` is a static page at **nesolume-demo.stoatworks-labs.com**: this
+plugin's own GLSL, ported to WebGL2, running on clips generated in the page.
+Deployed as a Cloudflare Worker serving `demo/` as static assets
+(`wrangler.toml`), with **no build step** — what is committed is what is
+served.
+
+Three things about it are not visible from the files:
+
+- **`demo/plugin.js` carries a second copy of the shaders AND the console
+  table.** Change a shader or a palette and change both, or the page quietly
+  renders the old machine.
+- **`demo/vendor/` is vendored, not authored here.** The master is
+  `stoatworks-backend/resolume-demo/`; fix it there and re-run its `sync.sh`.
+  `sync.sh --check` reports drift.
+- **Verify a deploy by content, never by status code.** A wrong page still
+  answers 200.
+
+```bash
+cf-run npx wrangler deploy
+curl -s 'https://nesolume-demo.stoatworks-labs.com/' | grep -o '<title>[^<]*'
+```
+
 ## 7. Conventions
 
 - Public repo. "Commit" means commit **and** push.
