@@ -165,6 +165,8 @@ and come from the offline harness in this repository.
 
 All builds, checksums and release notes: [github.com/stoatworks-labs/nesolume/releases](https://github.com/stoatworks-labs/nesolume/releases).
 
+The Windows builds are unsigned, so SmartScreen warns once.
+
 <!-- downloads:end -->
 
 ## OpenFX — Resolve, Vegas, Nuke, Natron
