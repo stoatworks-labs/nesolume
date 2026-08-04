@@ -146,9 +146,9 @@ and come from the offline harness in this repository.
 
 | Build | Download | Size |
 | --- | --- | --- |
-| Universal (Apple Silicon + Intel) · .dmg disk image | [`nesolume-0.1.0-macos-universal.dmg`](https://github.com/stoatworks-labs/nesolume/releases/download/v0.1.0/nesolume-0.1.0-macos-universal.dmg) | 185 KB |
-| Universal (Apple Silicon + Intel) · .zip archive | [`nesolume-macos-universal.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-macos-universal.zip) | 145 KB |
-| Universal (Apple Silicon + Intel) · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`nesolume-ofx-macos-universal.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-ofx-macos-universal.zip) | 224 KB |
+| Universal (Apple Silicon + Intel) · .dmg disk image | [`nesolume-0.1.0-macos-universal.dmg`](https://github.com/stoatworks-labs/nesolume/releases/download/v0.1.0/nesolume-0.1.0-macos-universal.dmg) | 206 KB |
+| Universal (Apple Silicon + Intel) · .zip archive | [`nesolume-macos-universal.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-macos-universal.zip) | 161 KB |
+| Universal (Apple Silicon + Intel) · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`nesolume-ofx-macos-universal.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-ofx-macos-universal.zip) | 236 KB |
 
 </details>
 
