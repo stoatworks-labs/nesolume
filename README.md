@@ -139,16 +139,16 @@ and come from the offline harness in this repository.
 
 ## Download
 
-**[v0.1.0](https://github.com/stoatworks-labs/nesolume/releases/tag/v0.1.0)** — prebuilt for macOS and Windows. Pick your platform:
+**[v1.0.0](https://github.com/stoatworks-labs/nesolume/releases/tag/v1.0.0)** — prebuilt for macOS and Windows. Pick your platform:
 
 <details>
 <summary><b>macOS</b> — Universal (Apple Silicon + Intel)</summary>
 
 | Build | Download | Size |
 | --- | --- | --- |
-| Universal (Apple Silicon + Intel) · .dmg disk image | [`nesolume-0.1.0-macos-universal.dmg`](https://github.com/stoatworks-labs/nesolume/releases/download/v0.1.0/nesolume-0.1.0-macos-universal.dmg) | 206 KB |
-| Universal (Apple Silicon + Intel) · .zip archive | [`nesolume-macos-universal.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-macos-universal.zip) | 161 KB |
-| Universal (Apple Silicon + Intel) · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`nesolume-ofx-macos-universal.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-ofx-macos-universal.zip) | 236 KB |
+| Universal (Apple Silicon + Intel) · .dmg disk image | [`nesolume-1.0.0-macos-universal.dmg`](https://github.com/stoatworks-labs/nesolume/releases/download/v1.0.0/nesolume-1.0.0-macos-universal.dmg) | 187 KB |
+| Universal (Apple Silicon + Intel) · .zip archive | [`nesolume-macos-universal.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-macos-universal.zip) | 145 KB |
+| Universal (Apple Silicon + Intel) · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`nesolume-ofx-macos-universal.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-ofx-macos-universal.zip) | 224 KB |
 
 </details>
 
@@ -157,7 +157,7 @@ and come from the offline harness in this repository.
 
 | Build | Download | Size |
 | --- | --- | --- |
-| x64 · .exe installer | [`nesolume-0.1.0-windows-x86_64-setup.exe`](https://github.com/stoatworks-labs/nesolume/releases/download/v0.1.0/nesolume-0.1.0-windows-x86_64-setup.exe) | 212 KB |
+| x64 · .exe installer | [`nesolume-1.0.0-windows-x86_64-setup.exe`](https://github.com/stoatworks-labs/nesolume/releases/download/v1.0.0/nesolume-1.0.0-windows-x86_64-setup.exe) | 213 KB |
 | x64 · .zip archive | [`nesolume-windows-x86_64.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-windows-x86_64.zip) | 104 KB |
 | x64 · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`nesolume-ofx-windows-x86_64.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-ofx-windows-x86_64.zip) | 65 KB |
 
