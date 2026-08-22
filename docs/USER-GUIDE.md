@@ -29,9 +29,9 @@ It appears in the effects list as **NESolume**.
 `/Library/OFX/Plugins/` (macOS) or
 `C:\Program Files\Common Files\OFX\Plugins\` (Windows) and restart the host.
 
-The builds are unsigned; if macOS complains, right-click the bundle in
-Finder once, or clear quarantine with
-`xattr -dr com.apple.quarantine <bundle>`.
+The macOS builds are **Developer ID-signed and notarised**, so both bundles just load. The
+Windows builds are not code-signed, but plugin files are not gated the way `.exe` files are, so
+the host loads them normally.
 
 ## Choosing a machine
 
