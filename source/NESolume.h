@@ -96,7 +96,18 @@ private:
 	/// timeline when there is one, so a re-render is reproducible; the wall
 	/// clock when there is not, so the picture is not frozen in a host that
 	/// never calls SetTime.
-	float elapsedSeconds() const;
+	float elapsedSeconds();
+
+public:
+	/// Clock test hooks. The harness DECLARES its unit rather than leaving
+	/// elapsedSeconds to infer one -- an absolute time in a single frame is
+	/// genuinely ambiguous, and an implicit unit is what let a thousand-times-
+	/// fast bug sit here unnoticed.
+	void SetClockScaleForTest( double scale );
+	double ClockScaleForTest() const;
+
+private:
+
 
 	ffglex::FFGLShader downresShader;
 	ffglex::FFGLShader tileShader;
@@ -108,6 +119,11 @@ private:
 	nesolume::PassBuffer tileBuffer;   //one texel per attribute cell: its mean colour
 	nesolume::PassBuffer quantBuffer;  //...quantised to the console's colours
 
+	double clockScale   = 0.0;///< 0 until decided; then 1.0 or 0.001
+	double lastRawTime  = -1.0;
+	double lastWallTime = -1.0;
+	int secondsVotes    = 0;
+	int millisVotes     = 0;
 	bool hostTimeSeen = false;
 	std::chrono::steady_clock::time_point startTime;
 
