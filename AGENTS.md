@@ -266,3 +266,10 @@ looks like "the effect does nothing" with no message anywhere. With four
 stages, knowing *which* one is most of the diagnosis; the GL
 vendor/renderer/version strings sit next to it because that is usually the
 rest of it.
+
+## Notes
+
+`docs/NOTES.md` carries this repo's working notes — current status, decisions
+already made, and the traps that have actually bitten. Read it before changing
+anything non-obvious. Cross-cutting fleet knowledge lives in
+[fleet-notes](https://github.com/stoatworks-labs/fleet-notes).
