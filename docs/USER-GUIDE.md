@@ -99,7 +99,9 @@ register wraps. None of it invents colours.
 - **Glitch Rate** — how often the machine's luck changes. Each tick re-rolls
   which cells and bands are corrupted. **At 0 the corruption is a still** — a
   crashed machine, not a screensaver — which is exactly what you want for a
-  freeze-frame look.
+  freeze-frame look. Winding the control down to 0 holds the glitch that is on
+  screen at that moment, so you can ride it down onto a frame you like rather
+  than being given whichever one zero happens to land on.
 
 **Mix** is a wet/dry against the untouched input. Note the effect snaps
 transparency to one bit (console video had transparency or it did not); Mix
