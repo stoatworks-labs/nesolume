@@ -361,6 +361,85 @@ bool readExactly( void* into, size_t bytes )
 	return true;
 }
 
+//---------------------------------------------------------------------------
+/// Prove a Glitch Rate change does not re-roll the machine's luck.
+///
+/// The tick either side of the change is read directly rather than comparing
+/// rendered frames: the content of a glitch is random, so two frames differ
+/// whether or not the tick moved, and a rendered comparison could not tell the
+/// two apart. The number says it outright.
+///
+/// Needs no GL, so it runs ahead of the context.
+//---------------------------------------------------------------------------
+int runGlitchTest()
+{
+	int failures = 0;
+
+	auto check = [ &failures ]( const char* what, double got, double want, double tol ) {
+		const bool ok = std::fabs( got - want ) <= tol;
+		std::printf( "glitch %-40s got=%-14.2f want=%-14.2f %s\n", what, got, want, ok ? "ok" : "FAILED" );
+		if( !ok )
+			++failures;
+	};
+
+	NESolume plugin;
+	plugin.SetClockScaleForTest( 1.0 );//seconds, said out loud rather than inferred
+
+	// By display name, as everything else in this harness does: the PT_ enum is
+	// private to the plugin and the name is the host's own handle on the control.
+	unsigned int rateIndex = 0;
+	bool found             = false;
+	for( unsigned int i = 0; i < plugin.GetNumParams(); ++i )
+	{
+		const char* name = plugin.GetParamName( i );
+		if( name != nullptr && std::string( name ) == "Glitch Rate" )
+		{
+			rateIndex = i;
+			found     = true;
+			break;
+		}
+	}
+	if( !found )
+	{
+		std::fprintf( stderr, "glitch: no parameter named 'Glitch Rate'\n" );
+		return 1;
+	}
+
+	// An hour in, which is where the old arithmetic hurt most.
+	float seconds = 3600.0f;
+
+	// Untouched, this must be exactly the old expression -- that is what keeps
+	// tools/sweep.py and every rendered-frame comparison measuring the same
+	// thing they measured before.
+	check( "untouched == floor( time * rateHz )", plugin.GlitchTickForTest( seconds ),
+	       std::floor( seconds * plugin.GetFloatParameter( rateIndex ) * 18.0f ), 0.5 );
+
+	const float rates[] = { 0.10f, 0.95f, 0.00f, 0.40f };
+	for( const float rate : rates )
+	{
+		const float before = plugin.GlitchTickForTest( seconds );
+
+		// The same instant, a new rate: nothing about the clock has moved, so
+		// the machine's luck may not change either.
+		plugin.SetFloatParameter( rateIndex, rate );
+		check( "a Rate change does not re-roll the glitch",
+		       plugin.GlitchTickForTest( seconds ), before, 0.5 );
+
+		// And then it must actually tick at the new rate. Within one tick, and
+		// that slack is real rather than sloppy: the count is floored, so a
+		// second at 7.2 ticks per second advances either 7 or 8 depending on
+		// where in the current tick the second happened to start.
+		const float resumed = plugin.GlitchTickForTest( seconds );
+		seconds += 1.0f;
+		check( "  and ticks at the new rate afterwards",
+		       plugin.GlitchTickForTest( seconds ) - resumed,
+		       static_cast< double >( rate ) * 18.0, 1.0 );
+	}
+
+	std::printf( "%s\n", failures == 0 ? "glitch: all ok" : "glitch: FAILURES" );
+	return failures == 0 ? 0 : 1;
+}
+
 void usage()
 {
 	std::printf(
@@ -375,6 +454,7 @@ void usage()
 		"  --flat V          render a uniform field at level V instead of the test card\n"
 		"  --measure         print the mean RGB of the middle of the picture\n"
 		"  --list            print every parameter and its default, then exit\n"
+		"  --glitch          a Glitch Rate change does not re-roll the machine's luck\n"
 		"\n"
 		"  --pipe            read raw RGBA frames from stdin, write them to stdout,\n"
 		"                    so real footage can be put through the chain:\n"
@@ -394,6 +474,7 @@ int main( int argc, char** argv )
 	int frames = 5;
 	bool keepAlpha = false;
 	bool listOnly = false;
+	bool glitchOnly = false;
 	bool measure = false;
 	bool pipeMode = false;
 	float flatLevel = -1.0f;
@@ -428,6 +509,8 @@ int main( int argc, char** argv )
 			flatLevel = std::strtof( next().c_str(), nullptr );
 		else if( arg == "--list" )
 			listOnly = true;
+		else if( arg == "--glitch" )
+			glitchOnly = true;
 		else if( arg == "--set" )
 		{
 			const std::string assignment = next();
@@ -473,6 +556,11 @@ int main( int argc, char** argv )
 		}
 		return -1;
 	};
+
+	// Ahead of the GL context on purpose: this one needs no GPU, so it still
+	// runs on a machine that cannot make a context at all.
+	if( glitchOnly )
+		return runGlitchTest();
 
 	if( listOnly )
 	{

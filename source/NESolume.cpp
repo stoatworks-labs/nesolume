@@ -214,6 +214,38 @@ void NESolume::SetClockScaleForTest( double scale )
 	clockScale = scale;
 }
 
+//---------------------------------------------------------------------------
+float NESolume::GlitchTick( float seconds )
+{
+	const float rateHz = params[ PT_GLITCH_RATE ] * 18.0f;
+
+	// First frame: leave the anchor at time zero, tick zero. That makes this
+	// exactly the old `floor( time * rateHz )` for as long as nobody touches
+	// Rate, which is what keeps tools/sweep.py and every rendered-frame
+	// comparison measuring the same thing they measured before.
+	if( tickAnchorRate < 0.0f )
+	{
+		tickAnchorRate = rateHz;
+	}
+	else if( rateHz != tickAnchorRate )
+	{
+		// Once per change, not once per frame.
+		tickAnchor += ( seconds - tickAnchorTime ) * tickAnchorRate;
+		tickAnchorTime = seconds;
+		tickAnchorRate = rateHz;
+	}
+
+	// Floor last, so the tick advances only when a whole one has passed. At a
+	// rate of zero the second term is zero and the tick simply holds, which is
+	// the still a crashed machine gives.
+	return std::floor( tickAnchor + ( seconds - tickAnchorTime ) * rateHz );
+}
+
+float NESolume::GlitchTickForTest( float seconds )
+{
+	return GlitchTick( seconds );
+}
+
 double NESolume::ClockScaleForTest() const
 {
 	return clockScale;
@@ -322,10 +354,10 @@ FFResult NESolume::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 
 	//The glitch clock. Events hold for one tick and re-roll on the next, so
 	//Rate is how often the machine's luck changes. At zero the tick never
-	//advances and a glitched frame is a still — deterministic, and exactly
-	//what a crashed machine does.
-	const float rateHz = params[ PT_GLITCH_RATE ] * 18.0f;
-	const float glitchKey = rateHz > 0.0f ? std::floor( time * rateHz ) : 0.0f;
+	//advances and a glitched frame is a still — exactly what a crashed machine
+	//does. NOT `floor( time * rateHz )`: see NESolume.h for why that re-rolls
+	//everything the instant Rate is touched.
+	const float glitchKey = GlitchTick( time );
 
 	//------------------------------------------------------------------
 	// 1. Down onto the console's raster, box-filtered.

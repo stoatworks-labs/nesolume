@@ -106,6 +106,13 @@ public:
 	void SetClockScaleForTest( double scale );
 	double ClockScaleForTest() const;
 
+	/// Which glitch tick is showing at a given moment. `--glitch` needs it: the
+	/// thing being tested is that a Rate change does NOT re-roll the machine's
+	/// luck, and reading the tick either side of one says so directly, where
+	/// comparing rendered frames could not -- the content of a glitch is random,
+	/// so two frames differ whether or not the tick moved.
+	float GlitchTickForTest( float seconds );
+
 private:
 
 
@@ -118,6 +125,33 @@ private:
 	nesolume::PassBuffer downresBuffer;//the picture on the console's raster
 	nesolume::PassBuffer tileBuffer;   //one texel per attribute cell: its mean colour
 	nesolume::PassBuffer quantBuffer;  //...quantised to the console's colours
+
+	//---------------------------------------------------------------------
+	// The glitch tick.
+	//
+	// Events hold for one tick and re-roll on the next, so Rate is how often the
+	// machine's luck changes. The tick used to be `floor( time * rateHz )`,
+	// which means a Rate change moves it by `time * delta` -- and `time` is
+	// however long the composition has been open, so nudging Rate an hour in
+	// skips thousands of ticks at once. That is the same defect orrery issue #6
+	// reported for its Speed control, and here it reads as the picture
+	// convulsing the moment the control is touched.
+	//
+	// So the tick is accumulated instead: on a Rate change the count reached so
+	// far is carried forward and counting continues from there at the new rate.
+	// Once per change rather than per frame, so nothing accumulates.
+	//
+	// Winding Rate to zero now HOLDS the glitch that is showing rather than
+	// snapping back to tick zero, which is what an operator reaching for the
+	// bottom of the control wants. A composition that has never had the control
+	// touched still starts at tick zero, so a cold load is as reproducible as it
+	// ever was.
+	//---------------------------------------------------------------------
+	float GlitchTick( float seconds );
+
+	float tickAnchor     = 0.0f;///< tick count already reached at `tickAnchorTime`
+	float tickAnchorTime = 0.0f;///< the clock reading that count belongs to
+	float tickAnchorRate = -1.0f;///< rate in force since then; < 0 until the first frame
 
 	double clockScale   = 0.0;///< 0 until decided; then 1.0 or 0.001
 	double lastRawTime  = -1.0;
