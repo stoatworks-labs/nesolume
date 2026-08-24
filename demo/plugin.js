@@ -373,6 +373,37 @@ const sizeFactorFromParam = (v) => 2 ** ((v - 0.5) * 4);
 const bitsFromParam = (v) => 1 + Math.round(v * 7);
 
 //---------------------------------------------------------------------------
+// The glitch tick, carried forward across a Rate change.
+//
+// Math.floor(time * rateHz) moves the tick by time * delta the instant Rate
+// changes, and here time is how long the page has been open -- so dragging the
+// slider re-rolls every event at once instead of simply glitching faster or
+// slower. Mirrors NESolume.h.
+//
+// Winding Rate to 0 holds the glitch on screen rather than snapping back to the
+// first one. A page that has never had the slider touched still starts at tick
+// zero, so a fresh load looks exactly as it always did.
+//---------------------------------------------------------------------------
+let tickAnchor = 0;
+let tickAnchorTime = 0;
+let tickAnchorRate = -1;
+
+function glitchTick(rateHz, time) {
+  if (tickAnchorRate < 0) {
+    tickAnchorRate = rateHz;
+  } else if (rateHz !== tickAnchorRate) {
+    // Once per change, not once per frame.
+    tickAnchor += (time - tickAnchorTime) * tickAnchorRate;
+    tickAnchorTime = time;
+    tickAnchorRate = rateHz;
+  }
+
+  // Floor last, so the tick advances only when a whole one has passed. At a rate
+  // of zero the second term is zero and the tick simply holds.
+  return Math.floor(tickAnchor + (time - tickAnchorTime) * rateHz);
+}
+
+//---------------------------------------------------------------------------
 // The renderer: the four passes, exactly as ProcessOpenGL runs them.
 //---------------------------------------------------------------------------
 
@@ -402,8 +433,7 @@ function createRenderer(gl, quad) {
       tileBuffer.ensure(tileGridW, tileGridH, gl.RGBA16F);
       quantBuffer.ensure(rasterW, rasterH, gl.RGBA8);
 
-      const rateHz = params.get('glitchRate') * 18;
-      const glitchKey = rateHz > 0 ? Math.floor(time * rateHz) : 0;
+      const glitchKey = glitchTick(params.get('glitchRate') * 18, time);
 
       // 1. Down onto the console's raster.
       downresBuffer.bind();
