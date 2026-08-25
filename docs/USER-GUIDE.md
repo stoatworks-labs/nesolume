@@ -26,8 +26,9 @@ settings read as a machine failing rather than a video effect succeeding.
 It appears in the effects list as **NESolume**.
 
 **Resolve and other OFX hosts:** copy `NESolume.ofx.bundle` into
-`/Library/OFX/Plugins/` (macOS) or
-`C:\Program Files\Common Files\OFX\Plugins\` (Windows) and restart the host.
+`/Library/OFX/Plugins/` (macOS),
+`C:\Program Files\Common Files\OFX\Plugins\` (Windows) or `/usr/OFX/Plugins/`
+(Linux) and restart the host.
 
 The macOS builds are **Developer ID-signed and notarised**, so both bundles just load. The
 Windows builds are not code-signed, but plugin files are not gated the way `.exe` files are, so
