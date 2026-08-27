@@ -48,7 +48,7 @@ jobs:
       # bump to actions/upload-artifact otherwise touches release.yml alone,
       # a workflow no pull request ever runs. Using it here means the check
       # actually exercises the action being bumped.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: nesolume-macos-arm64
           path: build/*.bundle
