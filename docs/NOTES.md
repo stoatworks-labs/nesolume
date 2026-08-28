@@ -55,7 +55,10 @@ page carries the video link. A build.py ffmpeg encode hung once at 0% CPU
 for 50 min — kill and rerun, it then took 3 min.
 
 **Never run inside Resolume or Resolve** (bundle installed to Extra Effects,
-loading verified only via ffgltest); Windows built in CI but never run.
+loading verified only via ffgltest); Windows built in CI (DLL, OpenFX bundle and
+NSIS installer, all shipped since v0.1.0) but never run. The README used to say
+the Windows build had never been compiled and that there was no CI; both were
+wrong — ci.yml and release.yml have both existed since the first release.
 
 Scaffolding from [old cathode](https://github.com/stoatworks-labs/old-cathode/blob/main/docs/NOTES.md) (`old-cathode`); traps in the repo's AGENTS.md.
 [plugin factory presets](https://github.com/stoatworks-labs/fleet-notes/blob/main/notes/reference_plugin_factory_presets.md) pattern; **disclaimer scope** (working-practice note, kept in Claude memory)

@@ -282,7 +282,10 @@ Not verified:
   at Mix 0 is exact, presets render byte-identically to hand-set values,
   every output pixel is palette-legal) — but it has never been loaded into a
   real Resolve.
-- **The Windows build has never been compiled.** No CI yet.
+- **The Windows build has never been run.** It compiles: the tag-triggered
+  release workflow builds the FFGL DLL and the OpenFX bundle on
+  `windows-latest`, packages an NSIS installer, and every release since v0.1.0
+  has shipped all three. Nobody has loaded any of them into a Windows host.
 - **The universal macOS build has been built and `lipo`-verified, never run
   on an Intel machine.**
 
