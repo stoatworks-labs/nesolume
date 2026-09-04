@@ -24,7 +24,7 @@ static CFFGLPluginInfo PluginInfo(
 	0,                                                    // Plugin major version number
 	1,                                                    // Plugin minor version number
 	FF_EFFECT,                                            // Plugin type
-	"Retro console video hardware: raster, palette, attribute cells and their glitches", // Plugin description
+	"Retro console video hardware: the raster, the palette, the attribute cells, and the ways they failed.\n\nNot a pixelate filter with a tint on it. A raster with not many lines, a palette with not many colours, and - the part that makes it read as a machine rather than a mosaic - attribute cells that force nearby pixels to share those colours.\n\nThe artefacts fall out of the constraints. Attribute clash is not drawn; it is what happens when a cell is only allowed one set of colours and two objects cross it.\n\nStart from a Preset, at the bottom.",// Plugin description
 	"NESolume FFGL effect"                                // About
 );
 
