@@ -5,6 +5,10 @@ real machine's raster, its palette, its attribute cells — and the ways all
 three fail. It runs as an FFGL effect in Resolume Arena and Avenue, and as an
 OpenFX plugin in DaVinci Resolve, Vegas Pro, Nuke and Natron.
 
+![The harness test card through the NES: posterised into the 2C02 palette, Bayer dither working the gradients, and the 16×16 attribute areas bleeding hue exact…](nes.png)
+
+*The harness test card through the NES: posterised into the 2C02 palette, Bayer dither working the gradients, and the 16×16 attribute areas bleeding hue exactly the way the hardware forced them to. Rendered by the plugin's own offline harness in a headless GL context, not a Resolume screen capture.*
+
 It is not a pixelate filter with a tint. The picture is averaged down onto
 the console's raster, forced through its colour system with the attribute
 cells enforced, and scaled back up as fat pixels. Everything you recognise —
