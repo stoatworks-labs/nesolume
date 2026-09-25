@@ -8,13 +8,16 @@
  *
  * refamiga.cpp is compiled against source/Amiga.cpp UNCHANGED, twice:
  *
- *   as-built   -std=c++17 -O3 -DNDEBUG for this machine's arch, CMake's Release
- *              flags. On arm64 Apple clang contracts multiply-adds into fused
- *              ones (its default -ffp-contract=on; the repo does not turn it
- *              off), so this is what the plugin's arm64 slice computes.
- *   unfused    the same with -ffp-contract=off: every double rounded after
- *              every operation, which is what JS does and what an x86_64
- *              build without FMA does.
+ *   as-built   -std=c++17 -O3 -DNDEBUG -ffp-contract=off for this machine's
+ *              arch: CMake's Release flags, and the no-contraction flag
+ *              CMakeLists.txt sets on Amiga.cpp (since v1.1.0's port check
+ *              found the fused arm64 build ordering equal-luma registers
+ *              differently). Every double rounded after every operation, as
+ *              JS does and as the x86_64 and MSVC builds do. Strict.
+ *   fused      the same with -ffp-contract=on, Apple clang's arm64 default:
+ *              what the plugin's arm64 slice computed before the flag.
+ *              Reported, never failed -- it is the contrast that shows the
+ *              flag matters.
  *
  * ------------------------------------------------------------ what it compares
  *
@@ -269,8 +272,8 @@ writeFileSync(cases, Buffer.concat(chunks));
 const cxx = process.env.CXX || 'c++';
 const archFlag = arch() === 'arm64' ? ['-arch', 'arm64'] : [];
 const builds = [
-  { name: 'as-built', flags: [] },
-  { name: 'unfused', flags: ['-ffp-contract=off'] },
+  { name: 'as-built', flags: ['-ffp-contract=off'] },
+  { name: 'fused', flags: ['-ffp-contract=on'] },
 ];
 const outputs = {};
 try {
@@ -334,22 +337,22 @@ for (const b of builds) {
     `${r.paletteBad.length ? ` -- differ: ${r.paletteBad.join('; ')}` : ''}`);
   console.log(`${' '.repeat(9)} tables: ${r.tablesBad ? `${r.tablesBad} differ` : 'identical'};  fieldIndex: ${r.fieldsBad ? `${r.fieldsBad} of 20000 differ` : '20000/20000 identical'}`);
   if (r.hamBad || r.tablesBad) failed = true;
-  if (b.name === 'unfused' && (r.paletteBad.length || r.fieldsBad)) failed = true;
+  if (b.name === 'as-built' && (r.paletteBad.length || r.fieldsBad)) failed = true;
 }
-const asBuilt = results['as-built'];
-if (asBuilt.paletteBad.length || asBuilt.fieldsBad) {
-  // Not a port error: the plugin's arm64 slice itself disagrees with an
-  // unfused build of the same source (an x86_64 slice without FMA, MSVC, JS).
-  // The pairs of equal-luma colours make the darkest-first sort's order rest
-  // on the last bit of a double, and a fused multiply-add rounds differently.
-  console.log('note: the as-built reference fuses multiply-adds; its differences above are the arm64 slice against every unfused build, JS included');
+const fused = results['fused'];
+if (fused.paletteBad.length || fused.fieldsBad) {
+  // Not a port error: a fused build of the same source disagrees with every
+  // unfused one. The pairs of equal-luma colours make the darkest-first sort's
+  // order rest on the last bit of a double, and a fused multiply-add rounds
+  // differently. The plugin is built unfused so that this cannot happen.
+  console.log('note: the fused (-ffp-contract=on) build differs as shown; the plugin is built with -ffp-contract=off');
 }
 if (failed) {
   console.log('FAIL: demo/amiga.js no longer agrees with source/Amiga.cpp');
   process.exit(1);
 }
-const fusedNote = asBuilt.paletteBad.length
-  ? `; the as-built ${arch()} C++ fuses multiply-adds and differs from JS and the unfused build on ${asBuilt.paletteBad.length} palettes` +
-    ` (${asBuilt.orderOnly === asBuilt.paletteBad.length ? 'the same registers in another order' : `${asBuilt.paletteBad.length - asBuilt.orderOnly} with different registers`})`
-  : `; the as-built ${arch()} C++ agrees too`;
-console.log(`port agrees: ${hamCases} HAM lines and ${paletteCases} palettes exact against Amiga.cpp built unfused${fusedNote}`);
+const fusedNote = fused.paletteBad.length
+  ? `; a fused ${arch()} build would differ on ${fused.paletteBad.length} palettes` +
+    ` (${fused.orderOnly === fused.paletteBad.length ? 'the same registers in another order' : `${fused.paletteBad.length - fused.orderOnly} with different registers`}), which is why it is not built that way`
+  : `; a fused ${arch()} build agrees too`;
+console.log(`port agrees: ${hamCases} HAM lines and ${paletteCases} palettes exact against Amiga.cpp as built (-ffp-contract=off)${fusedNote}`);

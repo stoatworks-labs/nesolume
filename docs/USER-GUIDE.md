@@ -115,7 +115,7 @@ Interlace is on.
 > **A note on flicker.** Laced mode is a 25 Hz (PAL) or 30 Hz (NTSC) flicker by
 > design, which is inside the band that can trigger photosensitive epilepsy.
 > On Resolume's own demo clips it is small — measured field to field at most
-> 0.8% of white over the whole frame and 3.8% in the worst small block — but a
+> 1.2% of white over the whole frame and 3.8% in the worst small block — but a
 > picture made of thin horizontal lines (text, a grille, a laced Workbench)
 > flickers much harder. Check laced footage before it goes on a big screen,
 > and use Flicker Fixer or leave Interlace off when in doubt.
@@ -201,7 +201,7 @@ size: about 0.17 ms per frame at 1080p and 0.56 ms at 4K on an Apple M4 Max.
 Chunkier pixels are cheaper still.
 
 The Amiga costs more, because it chooses its registers on the CPU every frame
-and HAM6 is encoded on the CPU: GUIDE_PERF
+and HAM6 is encoded on the CPU: about 4 ms per frame for HAM6 on a PAL low-res screen (6 ms laced) and about 1 ms for the other Amiga modes, measured on a busy Apple M4 Max. HAM6 uses up to eight CPU threads.
 
 ## If the effect does nothing
 

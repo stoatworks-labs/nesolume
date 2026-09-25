@@ -18,10 +18,10 @@
  *    that could reach 2^31), so JS numbers hold them exactly and the tables are
  *    Int32Arrays as the C++'s are int32_t.
  *  - choosePalette is in doubles in both, operation for operation in the same
- *    order. One caveat the check measures rather than hides: Apple clang's
- *    arm64 build contracts some of Amiga.cpp's multiply-adds into fused ones
- *    (-ffp-contract=on is its default and the repo does not turn it off), which
- *    JS cannot do. check_port.sh compares against the C++ built both ways.
+ *    order. JS cannot fuse a multiply-add, and since v1.1.0 the plugin does
+ *    not either: CMakeLists.txt builds Amiga.cpp with -ffp-contract=off (Apple
+ *    clang's arm64 default fused them, and ordered equal-luma registers
+ *    differently). check_port.sh compares against the C++ built both ways.
  */
 
 //---------------------------------------------------------------------------

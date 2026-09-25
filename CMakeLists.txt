@@ -81,6 +81,18 @@ add_library(nesolume_core OBJECT
 
 target_include_directories(nesolume_core PUBLIC source)
 target_link_libraries(nesolume_core PUBLIC ffgl::sdk)
+
+# The Amiga's CPU half must give the same answer on every build. Apple clang
+# contracts a*b+c into a fused multiply-add on arm64 by default and x86_64 and
+# MSVC do not, so the k-means (luma ties, centroid sums) could order equal-luma
+# registers differently on the two slices of one universal bundle -- found by
+# the demo's port check against Amiga.cpp. Only this file: the console code
+# above is v1.0.7's, byte for byte, and tools/compat.py keeps it that way.
+if(MSVC)
+    set_source_files_properties(source/Amiga.cpp PROPERTIES COMPILE_OPTIONS "/fp:precise")
+else()
+    set_source_files_properties(source/Amiga.cpp PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
+endif()
 target_compile_definitions(nesolume_core PUBLIC NESOLUME_VERSION="${PROJECT_VERSION}")
 set_target_properties(nesolume_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 

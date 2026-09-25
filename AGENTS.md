@@ -283,10 +283,12 @@ Display    as before, plus the laced field (Laced/Field/FlickerFixer)
 - **The OpenFX build leaves the Amiga out.** Its Console list skips
   `kPaletteAmiga`; since the Amiga is last, nothing renumbers.
 - **The laced mode's flicker was measured on the demo clips** (held still, so
-  the clip's own frame cadence is not in it): at most 0.8% of white field to
+  the clip's own frame cadence is not in it): at most 1.2% of white field to
   field over the whole frame and 3.8% in the worst 40-px block, against the
   flash guidelines' 10% (IntoTheGlow_02, Trinity, Cyberspace, Galactucity,
-  OrganicMotions, NeonRoom2, Metalive, SpaceUniverse; OCS and HAM6). Synthetic
+  OrganicMotions, NeonRoom2, Metalive, SpaceUniverse, NoHopeJustFear; OCS and
+  HAM6). Relative figures mislead here: a dark clip's 42% relative change was
+  0.2% of white. Synthetic
   one-line gratings (a laced Workbench) can do far more; that is the look.
 
 ### The HAM6 encoder
@@ -301,7 +303,7 @@ operations a pixel; the backtrack re-derives each pixel's colour from the
 stored tables.
 
 **It costs** (`netest --ham-cost`, M4 Max, 16 cores, a shared machine):
-HAM_COST_AGENTS The plugin uses `hardware_concurrency / 2` threads, 1..8.
+encoder alone, 320x256: 17.2 ms on one thread, 2.3 ms on eight; 320x512 (laced): 34.3 / 4.5 ms. Through the plugin at 1080p, the whole CPU path (read-back, k-means, read-back, encode, upload): HAM6 3.8 ms/frame PAL, 5.9 ms laced; OCS 1.0 / 0.8 ms. Measured with the machine at a load average of 21 (other agents), so an idle machine does better. The plugin uses `hardware_concurrency / 2` threads, 1..8.
 
 ### Traps this release found
 
@@ -326,6 +328,11 @@ HAM_COST_AGENTS The plugin uses `hardware_concurrency / 2` threads, 1..8.
   row whose centre lands exactly on a raster-line boundary (row 94 of 180 on a
   400-line raster) may sample either line. The check picks rows whose centre
   is 0.2..0.8 into a line.
+- **Apple clang fuses multiply-adds on arm64 by default**, so the k-means ordered
+  equal-luma registers differently on the arm64 slice from the x86_64 slice,
+  MSVC and JS (6 of 69 provoked pictures) -- found by the demo's port check,
+  not by any plugin check, because every plugin check ran on one slice.
+  Amiga.cpp is built `-ffp-contract=off` now; the console code is untouched.
 - **The worktree guard reads command text**: `git -C $W` is "the shared
   checkout", and a heredoc inside a blocked command never writes its file. Use
   literal paths in a zsh script; write message files with the Write tool.
@@ -364,7 +371,7 @@ odd/even-line checks, NTSC); `--palette` still passed, as it should. Reverted.
 
 ## 6. What has never been checked
 
-- ARENA_AGENTS_BULLET
+- **It has never been loaded into Resolume on macOS.** On Windows, v1.1.0's DLL passed the fleet's Arena gate in Resolume Arena 7.27.1 on win-lab (Mesa llvmpipe, no GPU), 9 of 9: it loads, registers as SW NESolume / NE01, all 26 host controls match the constructor in name, order, type, range and default, it renders, all 21 valued controls move the picture (seven under a precondition, the Amiga's five among them), and Arena logged no shader or error line. That says nothing about speed or about a real GPU driver.
 - **Whether Resolume consumes `FF_EVENT_FLAG_VALUE`** — a preset changes the
   picture regardless, but stale sliders in the inspector are possible.
 - **The Windows build is compiled by CI and has never been run on a real
@@ -393,6 +400,29 @@ Three things about it are not visible from the files:
   `sync.sh --check` reports drift.
 - **Verify a deploy by content, never by status code.** A wrong page still
   answers 200.
+- **The Amiga's CPU half is a JS port, checked** (v1.1.0). `demo/amiga.js` is a
+  line-for-line port of `source/Amiga.cpp` (fixedPalette, choosePalette,
+  displayPalette, baseRegisterCount/effectiveMode, fieldIndex,
+  HamEncoder::encodeLine). `demo/tools/check_port.sh` compiles `Amiga.cpp`
+  unchanged, as the plugin builds it (`-ffp-contract=off`) and fused for
+  contrast, and requires the JS to match the as-built one exactly: every HAM6
+  colour and cost on 4,190 random lines, every register on 69 palette choices.
+  verify.sh runs it and `demo/tools/check_shaders.py` (the page's shader
+  literals must equal `source/shaders/*.cpp`); change `Amiga.cpp` or a shader
+  and edit `amiga.js` or re-run `demo/tools/splice_shaders.py`, or verify
+  fails. **That check found a plugin defect**: Apple clang fuses multiply-adds
+  on arm64 by default, and the fused build ordered equal-luma registers
+  differently from every unfused one (x86_64, MSVC, JS) on 6 of 69 pictures
+  made to provoke it -- the two slices of one universal bundle disagreeing.
+  CMakeLists.txt now builds Amiga.cpp with `-ffp-contract=off` (`/fp:precise`
+  on MSVC). The page encodes HAM6 in Web Workers (`ham-worker.js`) because
+  the port is about ten times slower than the C++, and shows the last finished
+  encode: exact when paused, a few frames behind while playing, and it says
+  so. `demo/.assetsignore` keeps `demo/tools/` off the site. Against
+  `netest --pipe` on the page's own input: the bars card is bit-identical in
+  HAM6, OCS and EHB; the geometry card is 99.2-99.4% identical (mean 0.04-0.13
+  of 255), the difference coming from WebGL's downres filtering before the CPU
+  half, not from the port.
 
 ```bash
 cf-run npx wrangler deploy

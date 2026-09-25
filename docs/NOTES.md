@@ -63,3 +63,13 @@ wrong — ci.yml and release.yml have both existed since the first release.
 Scaffolding from [old cathode](https://github.com/stoatworks-labs/old-cathode/blob/main/docs/NOTES.md) (`old-cathode`); traps in the repo's AGENTS.md.
 [plugin factory presets](https://github.com/stoatworks-labs/fleet-notes/blob/main/notes/reference_plugin_factory_presets.md) pattern; **disclaimer scope** (working-practice note, kept in Claude memory)
 applies. Related: [ofx ports](https://github.com/stoatworks-labs/fleet-notes/blob/main/notes/project_ofx_ports.md) (nesolume is the eighth OFX port).
+
+**2026-09-25 — v1.1.0, the Amiga.** A tenth console, appended, with OCS 32 /
+EHB / HAM6, four screens, interlace and a flicker fixer; five controls after
+the About block. Every existing console byte-identical to v1.0.7
+(`tools/compat.py`, GPU and software renderer). HAM6 is an exact per-line
+Viterbi on the CPU (three 16x16 tables of state), checked against exhaustive
+search. First Arena gate for nesolume: 9/9, all 21 controls live. The traps
+(squared error makes a big HAM edge take five pixels, not three; v1.0.7's
+harness ignoring NETEST_RENDERER; the software renderer disagreeing with
+itself; fused multiply-adds on arm64) are in AGENTS.md section 5c.

@@ -16,6 +16,23 @@ Read `AGENTS.md` before changing the quantise or display shaders.
 - Palette legality: `python3 tools/verify.py` (every pixel must be a legal
   colour of its console, even with corruption at full)
 - Dead controls: `python3 tools/sweep.py` (every parameter must move pixels)
+- Everything at once: `tools/verify.sh` (arm64 dev build; `--universal` for a
+  fresh universal Release build plus lipo, plist and oxbow probe)
+
+## The Amiga (v1.1.0)
+- Console element 9, appended; five controls AFTER the About block (Amiga
+  Mode, Screen Mode, Interlace, Flicker Fixer, Amiga Palette). Append only.
+- `source/Amiga.{h,cpp}`: CPU, no GL. Built with `-ffp-contract=off` so both
+  macOS slices and Windows agree to the bit.
+- Checks: `netest --ham-edge|--ham-optimal|--ehb|--palette|--lace --size WxH`,
+  `--negative` (each must fail on a perturbed model), `--names`, `--params`,
+  `--ham-cost`. `NETEST_RENDERER=software` is CI's renderer.
+- Compatibility: `python3 tools/compat.py` renders every existing configuration
+  through v1.0.7's own harness (built from the tag into build/compat-*) and
+  this one: byte-identical. `--negative` runs it against `netest_insert` (the
+  Amiga inserted mid-list) and must fail. On the software renderer pass
+  `--retries 3`: it is not repeatable at the last bit.
+- The OpenFX build leaves the Amiga out.
 
 ## OpenFX build
 - `source/ofx/NESolumeOFX.cpp` → `build/NESolume.ofx.bundle` (target
@@ -34,7 +51,8 @@ Read `AGENTS.md` before changing the quantise or display shaders.
 ## Notes
 - Four shader stages; the effect is the GLSL, the C++ is host glue and the
   console table.
-- A new console is a row in `source/Consoles.cpp` and nothing anywhere else.
+- A new console is a row in `source/Consoles.cpp` and nothing anywhere else
+  (the Amiga is the exception: its machine is `source/Amiga.*`).
   The palette store offsets are hand-counted — the static_assert is the guard.
 - Corruption happens **before** quantisation so a glitch can never leave the
   palette; displacement moves whole texels and wraps. Those two invariants

@@ -9,15 +9,14 @@
 > to their hand-set values. The Amiga added in v1.1.0 is checked the same way:
 > its HAM6 encoder against an exhaustive search, every pixel against the
 > 12-bit registers, the interlaced fields frame by frame, and every existing
-> console byte for byte against v1.0.7 (see [Status](#status)). ARENA_STATUS_LINE
+> console byte for byte against v1.0.7 (see [Status](#status)). On Windows, v1.1.0 passed the fleet's Arena gate in Resolume Arena 7.27.1 (all 9 checks, every control moving the picture); it has **not been loaded into Resolume on macOS**.
 > Check it in your own rig before trusting it in a show.
 
 Retro console video hardware for [Resolume](https://resolume.com) Arena and
 Avenue, as an FFGL effect: the raster, the palette, the attribute cells — and
 the ways they failed.
 
-**Video:** [The Amiga, in VIDEO_SECONDS seconds](https://www.youtube.com/watch?v=VIDEO_ID)
- · [the nine consoles, from v1.0](https://www.youtube.com/watch?v=a3zUwJ6kPfM)
+**Video:** [What it does, in 52 seconds](https://www.youtube.com/watch?v=a3zUwJ6kPfM)
 
 ![NES: the 2C02 palette with dither and attribute clash](docs/nes.png)
 
@@ -110,7 +109,7 @@ Fixer** is the cure the period sold: both fields woven into one steady frame.
 HAM is not a per-pixel choice, so it cannot run in a shader. The line is
 encoded on the CPU, exactly: a Viterbi over the previous pixel's colour whose
 state is three 16×16 tables rather than 4,096 colours. On an M4 Max it costs
-HAM_COST_LINE
+about 4 ms a frame for PAL low res (6 laced) on the CPU, eight threads, measured by `netest --ham-cost` at 1080p on a heavily loaded M4 Max (load average 21): the encoder alone is 2.3 ms on eight threads and 17 ms on one for 320×256, and choosing the registers plus the two read-backs is about 1 ms. The other Amiga modes cost about 1 ms on the CPU. Most of the chain is still the GPU's and still runs at the Amiga raster.
 
 ## Controls
 
@@ -187,6 +186,12 @@ Attribute Clash to full and drag your own image in to watch the cells argue
 about it — or check the plugin's own claim right there: every glitch control
 at full on a fixed-palette console still never produces a colour the machine
 could not.
+
+The Amiga is there too. Its CPU half — choosing the registers and the exact
+HAM6 encoder — is a JavaScript port of `source/Amiga.cpp`, checked against the
+C++ line for line by `demo/tools/check_port.sh`, and it runs in Web Workers
+because it is about ten times slower than the plugin: while playing, the page
+shows the last finished encode, a few frames behind the clip, and says so.
 
 It is a port, so it is not evidence about the plugin: a browser is not
 Resolume, and its console table is a maintained second copy of
@@ -341,8 +346,8 @@ Verified through the offline harness on an M4 Max:
   detail is on, off, on at 50 fields/s and on, on, off, off sampled at 100 Hz;
   a uniform area does not move at all; the flicker fixer holds the detail
   steady; NTSC alternates at 60. A field clock that never advances fails it.
-  On eight of Resolume's demo clips held still, laced mode changes at most
-  0.8% of white field to field over the whole frame, 3.8% in the worst 40-px
+  On nine of Resolume's demo clips held still, laced mode changes at most
+  1.2% of white field to field over the whole frame, 3.8% in the worst 40-px
   block.
 - Every check holds at 1280×1024 and 320×180, on the GPU and on the software
   renderer, and one changed character in the interlace GLSL fails seven of
@@ -362,13 +367,16 @@ Verified through the offline harness on an M4 Max:
 - **The chain is deterministic.** Two runs of the harness produce
   byte-identical frames; time comes from the host clock, so a re-render
   reproduces its glitches.
+- **The Amiga costs more, on the CPU**: HAM6 about 4 ms a frame at PAL low
+  res, 6 ms laced, the other modes about 1 ms (`netest --ham-cost`, a loaded
+  M4 Max; see [The Amiga](#the-amiga)).
 - **Cost is 0.17 ms/frame at 1080p and 0.56 ms at 4K.** The quantising runs
   at the console raster, so it barely scales with composition size. Both
   figures are from one machine, not from CI.
 
 Not verified:
 
-- ARENA_STATUS_BULLET
+- **Never loaded into Resolume on macOS.** On Windows, v1.1.0's DLL passed the fleet's Arena gate in Resolume Arena 7.27.1 on win-lab (Mesa llvmpipe, no GPU), 9 of 9: it loads, registers as SW NESolume / NE01, all 26 host controls match the constructor in name, order, type, range and default, it renders, all 21 valued controls move the picture (seven under a precondition, the Amiga's five among them), and Arena logged no shader or error line. That says nothing about speed or about a real GPU driver.
 - **The Amiga is not in the OpenFX build.** Its HAM encoder and field clock
   are wired into the FFGL chain only; the OpenFX Console list stops at the
   PlayStation.
