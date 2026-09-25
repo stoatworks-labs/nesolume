@@ -16,7 +16,8 @@ Retro console video hardware for [Resolume](https://resolume.com) Arena and
 Avenue, as an FFGL effect: the raster, the palette, the attribute cells — and
 the ways they failed.
 
-**Video:** [What it does, in 52 seconds](https://www.youtube.com/watch?v=a3zUwJ6kPfM)
+**Video:** [The Amiga, in 57 seconds](https://www.youtube.com/watch?v=Y0gmZVjUg8A)
+ · [the nine consoles, from v1.0](https://www.youtube.com/watch?v=a3zUwJ6kPfM)
 
 ![NES: the 2C02 palette with dither and attribute clash](docs/nes.png)
 
@@ -202,15 +203,15 @@ and come from the offline harness in this repository.
 
 ## Download
 
-**[v1.0.7](https://github.com/stoatworks-labs/nesolume/releases/tag/v1.0.7)** — prebuilt for macOS, Windows and Linux. Pick your platform:
+**[v1.1.0](https://github.com/stoatworks-labs/nesolume/releases/tag/v1.1.0)** — prebuilt for macOS, Windows and Linux. Pick your platform:
 
 <details>
 <summary><b>macOS</b> — Universal (Apple Silicon + Intel)</summary>
 
 | Build | Download | Size |
 | --- | --- | --- |
-| Universal (Apple Silicon + Intel) · .dmg disk image | [`nesolume-1.0.7-macos-universal.dmg`](https://github.com/stoatworks-labs/nesolume/releases/download/v1.0.7/nesolume-1.0.7-macos-universal.dmg) | 203 KB |
-| Universal (Apple Silicon + Intel) · .zip archive | [`nesolume-macos-universal.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-macos-universal.zip) | 166 KB |
+| Universal (Apple Silicon + Intel) · .dmg disk image | [`nesolume-1.1.0-macos-universal.dmg`](https://github.com/stoatworks-labs/nesolume/releases/download/v1.1.0/nesolume-1.1.0-macos-universal.dmg) | 261 KB |
+| Universal (Apple Silicon + Intel) · .zip archive | [`nesolume-macos-universal.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-macos-universal.zip) | 216 KB |
 | Universal (Apple Silicon + Intel) · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`nesolume-ofx-macos-universal.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-ofx-macos-universal.zip) | 243 KB |
 
 </details>
@@ -220,8 +221,8 @@ and come from the offline harness in this repository.
 
 | Build | Download | Size |
 | --- | --- | --- |
-| x64 · .exe installer | [`nesolume-1.0.7-windows-x86_64-setup.exe`](https://github.com/stoatworks-labs/nesolume/releases/download/v1.0.7/nesolume-1.0.7-windows-x86_64-setup.exe) | 216 KB |
-| x64 · .zip archive | [`nesolume-windows-x86_64.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-windows-x86_64.zip) | 108 KB |
+| x64 · .exe installer | [`nesolume-1.1.0-windows-x86_64-setup.exe`](https://github.com/stoatworks-labs/nesolume/releases/download/v1.1.0/nesolume-1.1.0-windows-x86_64-setup.exe) | 238 KB |
+| x64 · .zip archive | [`nesolume-windows-x86_64.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-windows-x86_64.zip) | 129 KB |
 | x64 · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`nesolume-ofx-windows-x86_64.zip`](https://github.com/stoatworks-labs/nesolume/releases/latest/download/nesolume-ofx-windows-x86_64.zip) | 71 KB |
 
 </details>
