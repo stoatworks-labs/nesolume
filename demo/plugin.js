@@ -2,8 +2,10 @@
  * NESolume — browser demo.
  *
  * `VERTEX` and the four fragment shaders are the plugin's own GLSL from
- * `source/shaders/`, copied across unedited. The CONSOLES table below is a
- * second copy of `source/Consoles.cpp` — the demo cannot include a C++ file,
+ * `source/shaders/`, copied across unedited by demo/tools/splice_shaders.py
+ * and held there by demo/tools/check_shaders.py (verify.sh runs it). The
+ * CONSOLES table below is a second copy of `source/Consoles.cpp` — the demo
+ * cannot include a C++ file,
  * and *nothing enforces that they agree*. Change a palette or a raster in the
  * plugin and change it here too, or the page quietly goes on rendering the
  * old machine.
@@ -13,10 +15,19 @@
  * happens before colour choice so a glitch cannot leave the palette, and
  * displacement moves whole raster pixels — because they are properties of
  * the shaders, not of the host around them.
+ *
+ * The Amiga (v1.1.0) adds a CPU half: its colour registers are chosen per
+ * picture by k-means, and HAM6 is encoded line by line by an exact Viterbi.
+ * Both are C++ in the plugin (source/Amiga.cpp), ported to JS in amiga.js and
+ * checked against the C++ by demo/tools/check_port.sh. The wiring below is
+ * ProcessOpenGL's: read back the downres for the palette, read back the
+ * quantise pass's hand-over in HAM6, encode, upload. The one arrangement that
+ * is not the plugin's is WHEN the encode happens -- see `ham` below.
  */
 
 import { mountDemo } from './vendor/demo.js';
 import { Program, PassBuffer, bindTexture } from './vendor/gl.js';
+import * as amiga from './amiga.js';
 
 //---------------------------------------------------------------------------
 // Shaders — verbatim from source/shaders/*.cpp
@@ -125,7 +136,7 @@ uniform vec2 MaxUV;
 uniform vec2 RasterSize;
 uniform float TileSize;
 
-uniform float PaletteMode;//0 = fixed master palette, 1 = n bits per channel
+uniform float PaletteMode;//0 = fixed master palette, 1 = n bits per channel, 2 = HAM hand-over
 uniform float Bits;
 uniform vec3 Palette[ 64 ];
 uniform int PaletteCount;
@@ -196,7 +207,15 @@ void main()
 	float bayer = ( kBayer[ ( px.y % 4 ) * 4 + ( px.x % 4 ) ] + 0.5 ) / 16.0 - 0.5;
 
 	vec3 quantised;
-	if( PaletteMode > 0.5 )
+	if( PaletteMode > 1.5 )
+	{
+		//Hold-and-modify: the colour choice is a whole line's, not a pixel's,
+		//so it happens on the CPU (Amiga.h). This hands over the colour after
+		//clash, corruption and dither, dithered at one 12-bit step -- the
+		//corruption still happens before any colour is chosen.
+		quantised = clamp( color + bayer * Dither / 15.0, 0.0, 1.0 );
+	}
+	else if( PaletteMode > 0.5 )
 	{
 		float levels = exp2( Bits ) - 1.0;
 		vec3 dithered = clamp( color + bayer * Dither / levels, 0.0, 1.0 );
@@ -247,6 +266,10 @@ uniform float Time;
 uniform float Grid;
 uniform float Mix;
 
+uniform float Laced;       //1: an interlaced raster, shown a field at a time
+uniform float Field;       //which field: 0 draws the even lines, 1 the odd
+uniform float FlickerFixer;//1: both fields woven into one progressive frame
+
 in vec2 uv;
 
 out vec4 fragColor;
@@ -294,6 +317,25 @@ void main()
 	//--- Fetch, wrapped like a scroll register. -----------------------------
 	rc = mod( rc, RasterSize );
 	ivec2 ip = ivec2( clamp( rc, vec2( 0.0 ), RasterSize - 1.0 ) );
+
+	//--- Interlace: one field's lines, each covering its pair. --------------
+	//A field draws every other line of the laced raster, half a line apart
+	//from the other field, so on screen each of its lines spans a line pair
+	//and the other field's lines are not there. A detail one line high is
+	//therefore present in one field and absent in the next, and flickers at
+	//half the field rate. The flicker fixer buffered both fields and showed
+	//them woven, progressively, which is the whole raster -- the branch not
+	//taken. Line numbers count from the top; GL's rows count from the bottom.
+	if( Laced > 0.5 && FlickerFixer < 0.5 )
+	{
+		int rows = int( RasterSize.y );
+		int line = rows - 1 - ip.y;
+		int parity = int( Field );
+		if( ( line & 1 ) != parity )
+			line = line - 1 >= 0 ? line - 1 : parity;
+		ip.y = rows - 1 - line;
+	}
+
 	vec4 quantised = texelFetch( QuantTexture, ip, 0 );
 
 	//--- The grid between fat pixels. ---------------------------------------
@@ -367,6 +409,10 @@ const CONSOLES = [
   { name: 'Mega Drive', rasterHeight: 224, tileSize: 8, bits: 3 },
   { name: 'SNES', rasterHeight: 224, tileSize: 8, bits: 5 },
   { name: 'PlayStation', rasterHeight: 240, tileSize: 8, bits: 5 },
+  // Appended in v1.1.0, as in Consoles.cpp: a saved composition holds the
+  // element value, so every machine above keeps its number. The raster comes
+  // from the Screen Mode, not this height; the 16 is the bitplane fetch word.
+  { name: 'Amiga', rasterHeight: 256, tileSize: 16, amiga: true },
 ];
 
 const sizeFactorFromParam = (v) => 2 ** ((v - 0.5) * 4);
@@ -404,9 +450,122 @@ function glitchTick(rateHz, time) {
 }
 
 //---------------------------------------------------------------------------
+// HAM6's encoder, off the main thread.
+//
+// The plugin encodes every HAM frame on its render thread before it draws
+// (about 20 ms in C++ for 320 x 256). The page's port of that encoder runs at
+// roughly a tenth of the C++'s speed (0.25 s a 320 x 256 frame on one thread,
+// measured in node on an M-series Mac), so encoding in line would stall the
+// page for a quarter of a second every frame. Instead each frame's lines are
+// split across Web Workers (ham-worker.js), and the display draws the LAST
+// FRAME THEY FINISHED until the next one is done. The encoder is the same and
+// every finished frame is encoded exactly; what differs from the plugin is
+// that, while the clip moves, the HAM picture is a few frames behind it and
+// updates at the rate the stats line under the picture shows. When the page is
+// paused, the frame on screen is encoded from exactly the frame being shown.
+//---------------------------------------------------------------------------
+const ham = {
+  workers: [],
+  failed: false,
+  busy: false,
+  nextId: 1,
+  sent: null, // the hand-over bytes of the job in flight / last finished
+  done: null, // { width, height, bytes, cost, ms, at }
+  pending: 0,
+  parts: [],
+  started: 0,
+  times: [], // finish times, for the rate
+  stats: { active: false, text: '' },
+};
+
+let redraw = () => {};
+
+function hamWorkerCount() {
+  const cores = typeof navigator !== 'undefined' && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 2;
+  return Math.max(1, Math.min(8, cores - 1));
+}
+
+function hamStart() {
+  if (ham.workers.length || ham.failed) return;
+  try {
+    for (let i = 0; i < hamWorkerCount(); i += 1) {
+      const w = new Worker(new URL('./ham-worker.js', import.meta.url), { type: 'module' });
+      w.onmessage = (event) => hamPart(event.data);
+      w.onerror = (event) => {
+        // eslint-disable-next-line no-console
+        console.error('ham-worker', event.message);
+      };
+      ham.workers.push(w);
+    }
+  } catch {
+    // No workers (a very old browser): encode in line, as the plugin does,
+    // and let the page stall. Said in the stats line.
+    ham.workers = [];
+    ham.failed = true;
+  }
+}
+
+function hamPart(msg) {
+  if (msg.id !== ham.jobId) return;
+  const part = ham.parts[msg.index];
+  part.bytes = new Uint8Array(msg.rgba);
+  part.cost = msg.cost;
+  ham.pending -= 1;
+  if (ham.pending > 0) return;
+  const { width, height } = ham.job;
+  const bytes = new Uint8Array(width * height * 4);
+  let cost = 0;
+  for (const p of ham.parts) {
+    bytes.set(p.bytes, p.first * width * 4);
+    cost += p.cost;
+  }
+  hamFinish(width, height, bytes, cost);
+}
+
+function hamFinish(width, height, bytes, cost) {
+  const now = performance.now();
+  ham.done = { width, height, bytes, cost, ms: now - ham.started, uploaded: false };
+  ham.times.push(now);
+  while (ham.times.length > 1 && now - ham.times[0] > 2000) ham.times.shift();
+  ham.busy = false;
+  redraw();
+}
+
+/** Start an encode of `bytes` (the quantise pass's read-back) with `palette`. */
+function hamEncode(bytes, width, height, palette) {
+  ham.started = performance.now();
+  ham.sent = { width, height, bytes, palette: JSON.stringify(palette) };
+  ham.job = { width, height };
+  if (ham.failed || ham.workers.length === 0) {
+    const out = new Uint8Array(bytes.length);
+    const cost = amiga.encodeHamLines(new amiga.HamEncoder(), bytes, out, width, height, palette);
+    hamFinish(width, height, out, cost);
+    return;
+  }
+  ham.busy = true;
+  ham.jobId = ham.nextId;
+  ham.nextId += 1;
+  const n = Math.min(ham.workers.length, height);
+  ham.parts = [];
+  ham.pending = n;
+  for (let i = 0; i < n; i += 1) {
+    const first = Math.floor((height * i) / n);
+    const last = Math.floor((height * (i + 1)) / n);
+    const rgba = bytes.slice(first * width * 4, last * width * 4);
+    ham.parts.push({ first, bytes: null, cost: 0 });
+    ham.workers[i].postMessage({ id: ham.jobId, index: i, width, rows: last - first, rgba: rgba.buffer, palette }, [rgba.buffer]);
+  }
+}
+
+function sameBytes(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+//---------------------------------------------------------------------------
 // The renderer: the four passes, exactly as ProcessOpenGL runs them.
 //---------------------------------------------------------------------------
-
 function createRenderer(gl, quad) {
   const downres = new Program(gl, VERTEX, DOWNRES, 'downres');
   const tile = new Program(gl, VERTEX, TILE, 'tile');
@@ -416,16 +575,43 @@ function createRenderer(gl, quad) {
   const downresBuffer = new PassBuffer(gl, { filter: 'linear' });
   const tileBuffer = new PassBuffer(gl, { filter: 'nearest' });
   const quantBuffer = new PassBuffer(gl, { filter: 'nearest' });
+  // Where the page keeps the last finished HAM frame. The plugin writes its
+  // encode straight back over quantBuffer; here quantBuffer is re-rendered
+  // every frame and the encode arrives later, so it gets its own texture.
+  const hamBuffer = new PassBuffer(gl, { filter: 'nearest' });
 
   const paletteData = new Float32Array(64 * 3);
+
+  // The Amiga's registers carry over frame to frame, keyed by mode, count and
+  // Fixed-ness, exactly as amigaBase / amigaKey do in NESolume.h.
+  let amigaBase = [];
+  let amigaKey = -1;
+  let readback = new Uint8Array(0);
 
   return {
     render({ input, params, width, height, time }) {
       const con = CONSOLES[Math.round(params.get('console'))] ?? CONSOLES[0];
-
       const factor = sizeFactorFromParam(params.get('pixelSize'));
-      const rasterH = Math.min(2048, Math.max(8, Math.round(con.rasterHeight / factor)));
-      const rasterW = Math.min(4096, Math.max(8, Math.round((rasterH * width) / height)));
+
+      // The Amiga's screen: its own width by its own lines (doubled when
+      // laced), stretched to the output as a monitor set to fill would.
+      // Mirrored in float, as the C++ computes it.
+      const isAmiga = con.amiga === true;
+      const screen = amiga.screen(Math.round(params.get('amigaScreen')));
+      const laced = isAmiga && params.get('amigaInterlace') > 0.5;
+      const amigaMode = amiga.effectiveMode(Math.round(params.get('amigaMode')), screen.hires);
+      const isHam = isAmiga && amigaMode === amiga.MODE_HAM6;
+
+      let rasterH;
+      let rasterW;
+      if (isAmiga) {
+        const f = Math.fround(2 ** Math.fround(Math.fround(Math.fround(params.get('pixelSize')) - 0.5) * 4));
+        rasterH = Math.min(2048, Math.max(8, Math.round(Math.fround((screen.lines * (laced ? 2 : 1)) / f))));
+        rasterW = Math.min(4096, Math.max(8, Math.round(Math.fround(screen.width / f))));
+      } else {
+        rasterH = Math.min(2048, Math.max(8, Math.round(con.rasterHeight / factor)));
+        rasterW = Math.min(4096, Math.max(8, Math.round((rasterH * width) / height)));
+      }
       const tileGridW = Math.ceil(rasterW / con.tileSize);
       const tileGridH = Math.ceil(rasterH / con.tileSize);
 
@@ -444,6 +630,31 @@ function createRenderer(gl, quad) {
       downres.set('InputSize', input.width, input.height);
       downres.set('TargetSize', rasterW, rasterH);
       quad.draw();
+
+      // 1b. The Amiga's colour registers, chosen for this picture from the
+      //     clean raster (before clash and corruption).
+      let amigaShown = [];
+      let paletteMs = 0;
+      if (isAmiga) {
+        const t0 = performance.now();
+        const count = amiga.baseRegisterCount(amigaMode, screen.hires);
+        const fixedPal = Math.round(params.get('amigaPalette')) === amiga.PALETTE_FIXED;
+        const key = amigaMode * 1000 + count * 10 + (fixedPal ? 1 : 0);
+        if (fixedPal) {
+          amigaBase = amiga.fixedPalette(amigaMode, screen.hires);
+        } else {
+          const bytes = rasterW * rasterH * 4;
+          if (readback.length !== bytes) readback = new Uint8Array(bytes);
+          downresBuffer.bind();
+          gl.pixelStorei(gl.PACK_ALIGNMENT, 1);
+          gl.readPixels(0, 0, rasterW, rasterH, gl.RGBA, gl.UNSIGNED_BYTE, readback);
+          const seeds = key === amigaKey ? amigaBase : [];
+          amigaBase = amiga.choosePalette(readback, rasterW * rasterH, count, amigaMode === amiga.MODE_EHB, seeds);
+        }
+        amigaKey = key;
+        amigaShown = amiga.displayPalette(amigaBase, amigaMode);
+        paletteMs = performance.now() - t0;
+      }
 
       // 2. One texel per attribute cell.
       tileBuffer.bind();
@@ -468,7 +679,7 @@ function createRenderer(gl, quad) {
       quantize.set('TileSize', con.tileSize);
 
       const fixed = Array.isArray(con.palette);
-      quantize.set('PaletteMode', fixed ? 0 : 1);
+      quantize.set('PaletteMode', isAmiga ? (isHam ? 2 : 0) : fixed ? 0 : 1);
       quantize.set('Bits', con.bits > 0 ? con.bits : bitsFromParam(params.get('colourDepth')));
       paletteData.fill(0);
       if (fixed) {
@@ -478,21 +689,85 @@ function createRenderer(gl, quad) {
           paletteData[i * 3 + 2] = con.palette[i][2] / 255;
         }
       }
+      if (isAmiga) {
+        // The registers, 12-bit, at the DAC's 8-bit levels (v x 17).
+        for (let i = 0; i < amigaShown.length && i < 64; i += 1) {
+          paletteData[i * 3 + 0] = amiga.to8(amigaShown[i][0]) / 255;
+          paletteData[i * 3 + 1] = amiga.to8(amigaShown[i][1]) / 255;
+          paletteData[i * 3 + 2] = amiga.to8(amigaShown[i][2]) / 255;
+        }
+      }
       quantize.setArray('Palette', paletteData, 3);
-      quantize.setInt('PaletteCount', fixed ? con.palette.length : 1);
+      quantize.setInt('PaletteCount', isAmiga ? Math.max(amigaShown.length, 1) : fixed ? con.palette.length : 1);
 
       quantize.set('Dither', params.get('dither'));
-      quantize.set('Clash', params.get('clash'));
+      // The Amiga had no attribute cells: nothing to clash with.
+      quantize.set('Clash', isAmiga ? 0 : params.get('clash'));
       quantize.set('PaletteGlitch', params.get('paletteGlitch'));
       quantize.set('Garbage', params.get('garbage'));
       quantize.set('GlitchKey', glitchKey);
       quad.draw();
 
+      // 3b. Hold-and-modify, on the CPU: read the hand-over back, encode each
+      //     line exactly, and give the display stage the result.
+      let quantTexture = quantBuffer.texture;
+      if (isHam) {
+        hamStart();
+        const bytes = rasterW * rasterH * 4;
+        const handover = new Uint8Array(bytes);
+        quantBuffer.bind();
+        gl.pixelStorei(gl.PACK_ALIGNMENT, 1);
+        gl.readPixels(0, 0, rasterW, rasterH, gl.RGBA, gl.UNSIGNED_BYTE, handover);
+        const paletteText = JSON.stringify(amigaBase);
+        const current = ham.sent && ham.sent.width === rasterW && ham.sent.height === rasterH
+          && ham.sent.palette === paletteText && sameBytes(ham.sent.bytes, handover);
+        if (!ham.busy && !current) hamEncode(handover, rasterW, rasterH, amigaBase);
+
+        const d = ham.done;
+        if (d && d.width === rasterW && d.height === rasterH) {
+          hamBuffer.ensure(rasterW, rasterH, gl.RGBA8);
+          if (!d.uploaded) {
+            gl.bindTexture(gl.TEXTURE_2D, hamBuffer.texture);
+            gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+            gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, rasterW, rasterH, gl.RGBA, gl.UNSIGNED_BYTE, d.bytes);
+            gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+            gl.bindTexture(gl.TEXTURE_2D, null);
+            d.uploaded = true;
+          }
+          quantTexture = hamBuffer.texture;
+        } else {
+          // Nothing encoded at this raster yet (the first HAM frame, or a new
+          // Screen Mode / Interlace / Pixel Size): black, never the hand-over,
+          // which is not a HAM picture. Only until the first encode lands.
+          hamBuffer.ensure(rasterW, rasterH, gl.RGBA8);
+          hamBuffer.bind();
+          gl.clearColor(0, 0, 0, 1);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          quantTexture = hamBuffer.texture;
+        }
+        const fresh = d && !ham.busy && current && d.width === rasterW && d.height === rasterH;
+        const rate = ham.times.length > 3 && performance.now() - ham.times[ham.times.length - 1] < 500 ? ((ham.times.length - 1) * 1000) / (ham.times[ham.times.length - 1] - ham.times[0]) : 0;
+        ham.stats.active = true;
+        ham.stats.text = d
+          ? `HAM6: ${rasterW} × ${rasterH} encoded in JS on ${ham.failed ? 'the page thread' : `${ham.workers.length} Web Workers`}` +
+            ` — last frame ${Math.round(d.ms)} ms${rate > 0 ? `, ${rate.toFixed(1)} frames/s` : ''}, error ${d.cost.toLocaleString('en')}` +
+            ` · registers ${paletteMs.toFixed(1)} ms · ${fresh ? 'showing this frame' : 'showing the last finished frame'}`
+          : `HAM6: encoding the first ${rasterW} × ${rasterH} frame…`;
+      } else if (isAmiga) {
+        ham.stats.active = true;
+        ham.stats.text = `${amiga.MODE_NAMES[amigaMode]}: ${amigaShown.length} colours from ${amigaBase.length} registers` +
+          ` (${Math.round(params.get('amigaPalette')) === amiga.PALETTE_FIXED ? 'fixed' : `chosen in JS, ${paletteMs.toFixed(1)} ms`})` +
+          `${screen.hires && Math.round(params.get('amigaMode')) !== amiga.MODE_OCS ? ' · high res fetches four planes: OCS whatever Amiga Mode says' : ''}`;
+      } else {
+        ham.stats.active = false;
+        ham.stats.text = '';
+      }
+
       // 4. Back up to the composition, damaged on the way.
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, width, height);
       display.use();
-      bindTexture(gl, 0, quantBuffer.texture);
+      bindTexture(gl, 0, quantTexture);
       bindTexture(gl, 1, input.texture);
       display.setSampler('QuantTexture', 0);
       display.setSampler('InputTexture', 1);
@@ -511,6 +786,12 @@ function createRenderer(gl, quad) {
 
       display.set('Grid', params.get('grid'));
       display.set('Mix', params.get('mix'));
+
+      // The field, from the page's elapsed clock, counted in double.
+      const field = amiga.fieldIndex(time, screen.fieldHz);
+      display.set('Laced', laced ? 1 : 0);
+      display.set('Field', field & 1);
+      display.set('FlickerFixer', params.get('amigaFlickerFixer') > 0.5 ? 1 : 0);
       quad.draw();
     },
   };
@@ -520,11 +801,13 @@ function createRenderer(gl, quad) {
 
 const pct = (v) => `${Math.round(v * 100)}%`;
 
-mountDemo({
+const mounted = mountDemo({
   name: 'NESolume',
   pluginId: 'NE01',
   tagline:
     'Retro console video hardware, modelled as constraints rather than drawn as a look: a raster with not many lines, a palette with not many colours, attribute cells that force neighbours to share them — and the ways all three fail.',
+  blurb:
+    'It is NESolume’s own GLSL, ported from the repository to WebGL2 and running on generated clips in this page — same parameters, same shader maths, no install. The Amiga’s CPU half (choosing its colour registers, and the HAM6 encoder) is C++ in the plugin and a hand port to JavaScript here, checked against that C++ by a script in the repository.',
   repo: 'https://github.com/stoatworks-labs/nesolume',
   page: 'https://stoatworks-labs.com/software/nesolume/',
   video: 'https://www.youtube.com/watch?v=a3zUwJ6kPfM',
@@ -606,6 +889,33 @@ mountDemo({
       display: pct,
       hint: 'Wet/dry against the untouched input.',
     },
+
+    // The Amiga's five, appended after the About block in the plugin (so no
+    // existing parameter index moves), and inert unless Console is Amiga.
+    // Names, types, elements and defaults from NESolume's constructor.
+    {
+      id: 'amigaMode', name: 'Amiga Mode', type: 'option', default: amiga.MODE_HAM6, group: 'Amiga',
+      elements: amiga.MODE_NAMES,
+      hint: '32 colour registers; Extra Half-Brite’s 32 more at half brightness; or hold-and-modify, where each pixel is a register or the one before with one gun changed. High res runs the 32-colour mode with 16 registers whatever this says: OCS fetches at most four planes there.',
+    },
+    {
+      id: 'amigaScreen', name: 'Screen Mode', type: 'option', default: 0, group: 'Amiga',
+      elements: amiga.SCREENS.map((s) => s.name),
+      hint: '320 or 640 pixels by 256 (PAL, 50 fields/s) or 200 (NTSC, 60) lines, stretched to the output as a monitor would.',
+    },
+    {
+      id: 'amigaInterlace', name: 'Interlace', type: 'boolean', default: 0, group: 'Amiga',
+      hint: 'Twice the lines, drawn as two fields of alternate lines: a detail one line high flickers at half the field rate.',
+    },
+    {
+      id: 'amigaFlickerFixer', name: 'Flicker Fixer', type: 'boolean', default: 0, group: 'Amiga',
+      hint: 'With Interlace on: both fields woven into one progressive frame, as a flicker-fixer card did.',
+    },
+    {
+      id: 'amigaPalette', name: 'Amiga Palette', type: 'option', default: amiga.PALETTE_PER_FRAME, group: 'Amiga',
+      elements: amiga.PALETTE_CHOICE_NAMES,
+      hint: 'Registers chosen for each picture (k-means in 12-bit colour, seeded from the last frame), or one fixed set per mode.',
+    },
   ],
 
   sources: ['scene', 'bars', 'ramp', 'detail', 'alpha', 'spot'],
@@ -624,8 +934,34 @@ mountDemo({
   differences: [
     'The palettes and rasters here are a second copy of the plugin’s console table, maintained by hand. The plugin’s own copy is the one its harness checks pixel-by-pixel for palette legality; nothing checks this one.',
     'One of the plugin’s claims is checkable right here: turn every glitch control to full on a fixed-palette console and count the colours — corruption recolours cells, but never produces a colour the machine could not.',
-    'The raster’s width follows this page’s canvas aspect, exactly as it follows the composition’s in the host.',
+    'The raster’s width follows this page’s canvas aspect, exactly as it follows the composition’s in the host — except on the Amiga, whose raster is the machine’s own 320 or 640 pixels, as in the plugin.',
+    'The Amiga’s CPU half — choosing the colour registers (k-means over the 12-bit histogram, seeded from the last frame) and the exact HAM6 encoder (a per-line Viterbi) — is C++ in the plugin, and here it is a hand port to JavaScript (amiga.js). It is checked against the plugin’s own Amiga.cpp, compiled unchanged, by demo/tools/check_port.sh in the repository: identical colours and costs on thousands of random lines and palettes, identical registers on a set of generated pictures. The registers are identical to Amiga.cpp compiled the way JavaScript computes, one rounding per operation; the plugin’s Apple-silicon build fuses multiply-adds, and on pictures built to provoke it (colour pairs of exactly equal luma) it orders two registers the other way round. That is agreement on those cases, not a proof; the page’s read-backs, uploads and uniforms are checked only by reading plugin.js against ProcessOpenGL.',
+    'HAM6 is not encoded when the plugin encodes it. The plugin encodes every frame before drawing it (about 20 ms in C++). The JS port is roughly ten times slower, so the page splits the lines across Web Workers and shows the last frame they finished: while the clip plays, the HAM picture runs a few frames behind it at the rate shown under the picture. Paused or stepped, the picture is the encode of exactly the frame shown. The first HAM frame at a new raster is black until its encode lands. Pixel Size below 0.5 makes the raster up to 16 times bigger and the encode that much slower.',
+    'The interlace field comes from this page’s clock (50 or 60 fields a second), and the page draws at your display’s rate, so a PAL field sequence on a 60 Hz screen repeats a field now and then — as the plugin does in a 60 fps composition.',
   ],
 
   createRenderer,
 });
+
+// The Amiga's line, under the picture: what the CPU half is doing and what the
+// picture on screen is (this frame's encode, or the last one finished).
+const statLine = document.createElement('p');
+statLine.className = 'stage__status';
+statLine.setAttribute('aria-live', 'off');
+statLine.dataset.role = 'amiga-stats';
+// Not in embed mode: there the output is a video source and a caption would be
+// burnt into somebody's show.
+if (!('embed' in document.body.dataset)) document.querySelector('.stage')?.append(statLine);
+if (statLine.isConnected) {
+  const tick = () => {
+    const text = ham.stats.active ? ham.stats.text : '';
+    if (statLine.textContent !== text) statLine.textContent = text;
+    statLine.hidden = !ham.stats.active;
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+redraw = mounted?.redraw ?? (() => {});
+
+export { mounted };

@@ -10,7 +10,8 @@
 # the Amiga's --ham-edge, --ham-optimal, --ehb, --palette, --lace) at two
 # rasters on the GPU and at CI's 320x180 on Apple's software renderer; the
 # negative controls; --compat against the previous release; verify.py's palette
-# legality; the sweep; and the pipe mode's broken-pipe exit.
+# legality; the sweep; the browser demo's shader copies and its Amiga port
+# (demo/tools/); and the pipe mode's broken-pipe exit.
 #
 # The general lesson the file exists for: a check that only ever runs in CI,
 # after a tag, is a check that will catch you after the tag. Anything that can
@@ -220,6 +221,26 @@ run verify.py python3 tools/verify.py
 
 step "sweep: every control moves pixels"
 run sweep python3 tools/sweep.py --jobs 4
+
+#---------------------------------------------------------------------------
+# The browser demo: its shaders are the plugin's, character for character, and
+# its port of the Amiga (demo/amiga.js) agrees with source/Amiga.cpp exactly on
+# check_port's cases. No browser needed; check_port.sh skips (exit 3) without
+# node or a compiler.
+#---------------------------------------------------------------------------
+step "demo: the page's shaders and its Amiga port"
+run check_shaders python3 demo/tools/check_shaders.py
+out=$( demo/tools/check_port.sh 2>&1 )
+status=$?
+if [ "$status" -eq 0 ]; then
+	printf '%s\n' "$out" | sed 's/^/   /'
+elif [ "$status" -eq 3 ]; then
+	printf '   %s\n' "$out"
+else
+	printf '%s\n' "$out" | sed 's/^/   /'
+	printf '   \033[31mcheck_port FAILED\033[0m -- demo/amiga.js no longer agrees with source/Amiga.cpp\n'
+	failures=$(( failures + 1 ))
+fi
 
 #---------------------------------------------------------------------------
 # --pipe with the reader gone: the documented exit 1 and its message, not

@@ -1,0 +1,5 @@
+# Not part of the page. demo/tools/ holds repo-side checks (the shader copies
+# against the plugin's, the Amiga port against Amiga.cpp, and that check's C++
+# driver); wrangler would otherwise upload them and serve them, which is
+# neither useful nor anybody's business.
+tools/
