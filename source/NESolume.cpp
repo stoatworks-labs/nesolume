@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <string>
+#include <thread>
 
 using namespace ffglex;
 using namespace nesolume;
@@ -83,6 +84,14 @@ NESolume::NESolume() :
 
 	params[ PT_PRESET ]         = 0.0f;//Custom: the sliders are the truth
 
+	//The Amiga's. HAM6 because it is the mode the machine is remembered for,
+	//on the PAL low-res screen it was drawn on. Inert until Console = Amiga.
+	params[ PT_AMIGA_MODE ]          = static_cast< float >( amiga::kModeHAM6 );
+	params[ PT_AMIGA_SCREEN ]        = static_cast< float >( amiga::kPalLowRes );
+	params[ PT_AMIGA_INTERLACE ]     = 0.0f;
+	params[ PT_AMIGA_FLICKER_FIXER ] = 0.0f;
+	params[ PT_AMIGA_PALETTE ]       = static_cast< float >( amiga::kPalettePerFrame );
+
 	//---------------------------------------------------------------------
 	// Declaration. Grouped, because an ungrouped list of fifteen in somebody
 	// else's inspector is unusable.
@@ -125,6 +134,23 @@ NESolume::NESolume() :
 		for( const auto& b : stoatworks::about::buttons() )
 			SetParamInfo( aboutId++, b.label, FF_TYPE_EVENT, false );
 	}
+
+	// The Amiga's controls, appended after the About block (see NESolume.h).
+	// Element values are the enum values in Amiga.h, which are append-only
+	// for the same reason the Console list is.
+	SetOptionParamInfo( PT_AMIGA_MODE, "Amiga Mode", amiga::kModeCount, params[ PT_AMIGA_MODE ] );
+	for( int i = 0; i < amiga::kModeCount; ++i )
+		SetParamElementInfo( PT_AMIGA_MODE, i, amiga::modeName( i ), static_cast< float >( i ) );
+	SetOptionParamInfo( PT_AMIGA_SCREEN, "Screen Mode", amiga::kScreenCount, params[ PT_AMIGA_SCREEN ] );
+	for( int i = 0; i < amiga::kScreenCount; ++i )
+		SetParamElementInfo( PT_AMIGA_SCREEN, i, amiga::screen( i ).name, static_cast< float >( i ) );
+	SetParamInfof( PT_AMIGA_INTERLACE, "Interlace", FF_TYPE_BOOLEAN );
+	SetParamInfof( PT_AMIGA_FLICKER_FIXER, "Flicker Fixer", FF_TYPE_BOOLEAN );
+	SetOptionParamInfo( PT_AMIGA_PALETTE, "Amiga Palette", amiga::kPaletteChoiceCount, params[ PT_AMIGA_PALETTE ] );
+	for( int i = 0; i < amiga::kPaletteChoiceCount; ++i )
+		SetParamElementInfo( PT_AMIGA_PALETTE, i, amiga::paletteChoiceName( i ), static_cast< float >( i ) );
+	for( FFUInt32 i = PT_AMIGA_MODE; i <= PT_AMIGA_PALETTE; ++i )
+		SetParamGroup( i, "Amiga" );
 
 	for( FFUInt32 i = PT_CONSOLE; i <= PT_GRID; ++i )
 		SetParamGroup( i, "Picture" );
@@ -170,7 +196,10 @@ float NESolume::elapsedSeconds()
 	// No host clock at all. The wall clock is already in seconds, so the unit
 	// question does not arise and no scale must be applied to it.
 	if( !hostTimeSeen )
+	{
+		lastElapsed = wallNow;
 		return static_cast< float >( wallNow );
+	}
 
 	const double raw = hostTime;
 
@@ -206,6 +235,7 @@ float NESolume::elapsedSeconds()
 	// Until the unit is settled, run on the real clock rather than assume one:
 	// wrong in origin but right in rate, where assuming seconds would be a
 	// thousand times fast on Resolume.
+	lastElapsed = clockScale != 0.0 ? raw * clockScale : wallNow;
 	return static_cast< float >( clockScale != 0.0 ? raw * clockScale : wallNow );
 }
 
@@ -328,13 +358,26 @@ FFResult NESolume::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 
 	const ConsoleSpec& con = console( static_cast< int >( params[ PT_CONSOLE ] + 0.5f ) );
 
+	//The Amiga's screen. Its raster is the machine's own width by its own
+	//lines, stretched to the composition as a monitor set to fill would -- not
+	//square pixels, because a HAM line is 320 pixels long and that length is
+	//the constraint. Interlace doubles the lines.
+	const bool isAmiga           = con.kind == kPaletteAmiga;
+	const amiga::Screen& screen  = amiga::screen( static_cast< int >( std::lround( params[ PT_AMIGA_SCREEN ] ) ) );
+	const bool laced             = isAmiga && params[ PT_AMIGA_INTERLACE ] > 0.5f;
+	const int amigaMode          = amiga::effectiveMode( static_cast< int >( std::lround( params[ PT_AMIGA_MODE ] ) ), screen.hires );
+
 	//The raster. Line count is the console's scaled by Pixel Size (0.5 is
 	//native, the ends are quarter and four-times pixels); width follows the
 	//composition's aspect so pixels are square on screen. See AGENTS.md for
 	//why width is not the console's.
 	const float sizeFactor = std::exp2( ( params[ PT_PIXEL_SIZE ] - 0.5f ) * 4.0f );
-	const int rasterH = std::clamp( static_cast< int >( std::lround( con.rasterHeight / sizeFactor ) ), 8, 2048 );
-	const int rasterW = std::clamp( static_cast< int >( std::lround( rasterH * outputWidth / outputHeight ) ), 8, 4096 );
+	const int rasterH = isAmiga
+	                        ? std::clamp( static_cast< int >( std::lround( screen.lines * ( laced ? 2 : 1 ) / sizeFactor ) ), 8, 2048 )
+	                        : std::clamp( static_cast< int >( std::lround( con.rasterHeight / sizeFactor ) ), 8, 2048 );
+	const int rasterW = isAmiga
+	                        ? std::clamp( static_cast< int >( std::lround( screen.width / sizeFactor ) ), 8, 4096 )
+	                        : std::clamp( static_cast< int >( std::lround( rasterH * outputWidth / outputHeight ) ), 8, 4096 );
 
 	const int tileGridW = ( rasterW + con.tileSize - 1 ) / con.tileSize;
 	const int tileGridH = ( rasterH + con.tileSize - 1 ) / con.tileSize;
@@ -378,6 +421,37 @@ FFResult NESolume::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 	}
 
 	//------------------------------------------------------------------
+	// 1b. The Amiga's colour registers, chosen for this picture. From the
+	//     clean raster, before clash and corruption: the registers are what
+	//     the program loaded, and a glitch scrambles indices into them.
+	//------------------------------------------------------------------
+	std::vector< amiga::Colour12 > amigaShown;
+	const auto amigaStart = std::chrono::steady_clock::now();
+	if( isAmiga )
+	{
+		const int count     = amiga::baseRegisterCount( amigaMode, screen.hires );
+		const bool fixedPal = std::lround( params[ PT_AMIGA_PALETTE ] ) == amiga::kPaletteFixed;
+		const int key       = amigaMode * 1000 + count * 10 + ( fixedPal ? 1 : 0 );
+
+		if( fixedPal )
+			amigaBase = amiga::fixedPalette( amigaMode, screen.hires );
+		else
+		{
+			amigaReadback.resize( static_cast< size_t >( rasterW ) * rasterH * 4 );
+			{
+				ScopedFBOBinding fbo( downresBuffer.GetGLID(), ScopedFBOBinding::RB_REVERT );
+				glPixelStorei( GL_PACK_ALIGNMENT, 1 );
+				glReadPixels( 0, 0, rasterW, rasterH, GL_RGBA, GL_UNSIGNED_BYTE, amigaReadback.data() );
+			}
+			const std::vector< amiga::Colour12 > seeds = key == amigaKey ? amigaBase : std::vector< amiga::Colour12 >();
+			amigaBase = amiga::choosePalette( amigaReadback.data(), rasterW * rasterH, count,
+			                                  amigaMode == amiga::kModeEHB, seeds );
+		}
+		amigaKey   = key;
+		amigaShown = AmigaDisplayPaletteForTest();
+	}
+
+	//------------------------------------------------------------------
 	// 2. One texel per attribute cell: its mean colour.
 	//------------------------------------------------------------------
 	{
@@ -415,7 +489,8 @@ FFResult NESolume::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 		quantizeShader.Set( "RasterSize", static_cast< float >( rasterW ), static_cast< float >( rasterH ) );
 		quantizeShader.Set( "TileSize", static_cast< float >( con.tileSize ) );
 
-		quantizeShader.Set( "PaletteMode", con.kind == kPaletteRGBBits ? 1.0f : 0.0f );
+		quantizeShader.Set( "PaletteMode", isAmiga ? ( amigaMode == amiga::kModeHAM6 ? 2.0f : 0.0f )
+		                                           : con.kind == kPaletteRGBBits ? 1.0f : 0.0f );
 		const int bits = con.bitsPerChannel > 0
 		                     ? con.bitsPerChannel
 		                     : 1 + static_cast< int >( std::lround( params[ PT_COLOUR_DEPTH ] * 7.0f ) );
@@ -433,12 +508,28 @@ FFResult NESolume::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 				palette[ i * 3 + 1 ] = store[ con.paletteFirst + i ][ 1 ] / 255.0f;
 				palette[ i * 3 + 2 ] = store[ con.paletteFirst + i ][ 2 ] / 255.0f;
 			}
+			if( isAmiga )
+			{
+				//The registers, 12-bit, at the DAC's 8-bit levels (v x 17). The
+				//EightBitPalette negative control nudges them one 8-bit level
+				//off that grid, so --palette can prove it would notice.
+				const float nudge = negative == Negative::EightBitPalette ? 1.0f / 255.0f : 0.0f;
+				for( size_t i = 0; i < amigaShown.size() && i < static_cast< size_t >( kMaxPaletteSize ); ++i )
+				{
+					palette[ i * 3 + 0 ] = amiga::to8( amigaShown[ i ].r ) / 255.0f + nudge;
+					palette[ i * 3 + 1 ] = amiga::to8( amigaShown[ i ].g ) / 255.0f;
+					palette[ i * 3 + 2 ] = amiga::to8( amigaShown[ i ].b ) / 255.0f;
+				}
+			}
 			glUniform3fv( quantizeShader.FindUniform( "Palette" ), kMaxPaletteSize, palette );
-			quantizeShader.Set( "PaletteCount", std::max( con.paletteCount, 1 ) );
+			quantizeShader.Set( "PaletteCount", isAmiga ? std::max( static_cast< int >( amigaShown.size() ), 1 )
+			                                            : std::max( con.paletteCount, 1 ) );
 		}
 
 		quantizeShader.Set( "Dither", params[ PT_DITHER ] );
-		quantizeShader.Set( "Clash", params[ PT_CLASH ] );
+		//The Amiga had no attribute cells: every pixel indexes the registers on
+		//its own, so there is nothing to clash with.
+		quantizeShader.Set( "Clash", isAmiga ? 0.0f : params[ PT_CLASH ] );
 		quantizeShader.Set( "PaletteGlitch", params[ PT_PALETTE_GLITCH ] );
 		quantizeShader.Set( "Garbage", params[ PT_GARBAGE ] );
 		quantizeShader.Set( "GlitchKey", glitchKey );
@@ -448,6 +539,37 @@ FFResult NESolume::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 		glBindTexture( GL_TEXTURE_2D, 0 );
 		glActiveTexture( GL_TEXTURE0 );
 	}
+
+	//------------------------------------------------------------------
+	// 3b. Hold-and-modify, on the CPU. A HAM pixel's colour depends on every
+	//     pixel before it on the line, so the choice is an optimisation along
+	//     the line (Amiga.h), not a per-fragment one: read the hand-over back,
+	//     encode each line exactly, and put the result where the display
+	//     stage reads the quantised raster.
+	//------------------------------------------------------------------
+	if( isAmiga && amigaMode == amiga::kModeHAM6 )
+	{
+		const size_t bytes = static_cast< size_t >( rasterW ) * rasterH * 4;
+		amigaReadback.resize( bytes );
+		amigaEncoded.resize( bytes );
+		{
+			ScopedFBOBinding fbo( quantBuffer.GetGLID(), ScopedFBOBinding::RB_REVERT );
+			glPixelStorei( GL_PACK_ALIGNMENT, 1 );
+			glReadPixels( 0, 0, rasterW, rasterH, GL_RGBA, GL_UNSIGNED_BYTE, amigaReadback.data() );
+		}
+
+		static const int kThreads = std::clamp( static_cast< int >( std::thread::hardware_concurrency() ) / 2, 1, 8 );
+		amiga::encodeHamFrame( amigaReadback.data(), amigaEncoded.data(), rasterW, rasterH, amigaBase, kThreads,
+		                       negative == Negative::TwoGunModify ? 2 : 1 );
+
+		glBindTexture( GL_TEXTURE_2D, quantBuffer.GetTextureInfo().Handle );
+		glPixelStorei( GL_UNPACK_ALIGNMENT, 1 );
+		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, rasterW, rasterH, GL_RGBA, GL_UNSIGNED_BYTE, amigaEncoded.data() );
+		glPixelStorei( GL_UNPACK_ALIGNMENT, 4 );
+		glBindTexture( GL_TEXTURE_2D, 0 );
+	}
+	amigaCpuMs = isAmiga ? std::chrono::duration< double, std::milli >( std::chrono::steady_clock::now() - amigaStart ).count()
+	                     : 0.0;
 
 	//------------------------------------------------------------------
 	// 4. Back up to the composition, damaged on the way.
@@ -482,6 +604,12 @@ FFResult NESolume::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 
 		displayShader.Set( "Grid", params[ PT_GRID ] );
 		displayShader.Set( "Mix", params[ PT_MIX ] );
+
+		//The field, from real elapsed time and counted in double.
+		const int64_t field = negative == Negative::FrozenField ? 0 : amiga::fieldIndex( lastElapsed, screen.fieldHz );
+		displayShader.Set( "Laced", laced ? 1.0f : 0.0f );
+		displayShader.Set( "Field", static_cast< float >( field & 1 ) );
+		displayShader.Set( "FlickerFixer", params[ PT_AMIGA_FLICKER_FIXER ] > 0.5f ? 1.0f : 0.0f );
 		quad.Draw();
 
 		glActiveTexture( GL_TEXTURE1 );
@@ -519,7 +647,7 @@ FFResult NESolume::SetFloatParameter( unsigned int index, float value )
 
 	// An About button is a press, not a value to keep: it opens a browser and
 	// nothing about the effect changes.
-	if( index >= PT_ABOUT_FIRST )
+	if( index >= PT_ABOUT_FIRST && index < PT_ABOUT_END )
 		return stoatworks::about::handleParam( index - PT_ABOUT_FIRST, value ) ? FF_SUCCESS : FF_FAIL;
 
 	if( index == PT_PRESET )
@@ -609,4 +737,22 @@ char* NESolume::GetTextParameter( unsigned int index )
 	}
 
 	return CFFGLPlugin::GetTextParameter( index );
+}
+
+std::vector< amiga::Colour12 > NESolume::AmigaDisplayPaletteForTest() const
+{
+	const int screenId = static_cast< int >( std::lround( params[ PT_AMIGA_SCREEN ] ) );
+	const int mode     = amiga::effectiveMode( static_cast< int >( std::lround( params[ PT_AMIGA_MODE ] ) ),
+                                           amiga::screen( screenId ).hires );
+	std::vector< amiga::Colour12 > shown = amiga::displayPalette( amigaBase, mode );
+
+	//The RoundedHalfBrite negative control: twins rounded up rather than
+	//shifted. 15 becomes 8 instead of 7, which Denise never did.
+	if( negative == Negative::RoundedHalfBrite && mode == amiga::kModeEHB )
+		for( size_t i = amigaBase.size(); i < shown.size(); ++i )
+		{
+			const amiga::Colour12& b = amigaBase[ i - amigaBase.size() ];
+			shown[ i ]               = { uint8_t( ( b.r + 1 ) >> 1 ), uint8_t( ( b.g + 1 ) >> 1 ), uint8_t( ( b.b + 1 ) >> 1 ) };
+		}
+	return shown;
 }

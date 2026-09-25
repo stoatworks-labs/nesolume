@@ -839,8 +839,13 @@ void NESolumePluginFactory::describeInContext( OFX::ImageEffectDescriptor& desc,
 	OFX::ChoiceParamDescriptor* consoleChoice = desc.defineChoiceParam( kParamConsole );
 	consoleChoice->setLabels( "Console", "Console", "Console" );
 	consoleChoice->setHint( "The machine: sets the raster, the colour system and the attribute cell size." );
+	// The Amiga (v1.1.0) is not in the OpenFX build: its HAM encoder and field
+	// clock are wired into the FFGL chain only, and a choice the CPU mirror
+	// cannot render would be a lie. It is the last console, so leaving it off
+	// the end renumbers nothing.
 	for( int i = 0; i < nesolume::consoleCount(); ++i )
-		consoleChoice->appendOption( nesolume::console( i ).name );
+		if( nesolume::console( i ).kind != nesolume::kPaletteAmiga )
+			consoleChoice->appendOption( nesolume::console( i ).name );
 	consoleChoice->setDefault( 2 );//NES
 	consoleChoice->setParent( *picture );
 	page->addChild( *consoleChoice );

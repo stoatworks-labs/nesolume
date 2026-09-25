@@ -35,6 +35,10 @@ uniform float Time;
 uniform float Grid;
 uniform float Mix;
 
+uniform float Laced;       //1: an interlaced raster, shown a field at a time
+uniform float Field;       //which field: 0 draws the even lines, 1 the odd
+uniform float FlickerFixer;//1: both fields woven into one progressive frame
+
 in vec2 uv;
 
 out vec4 fragColor;
@@ -82,6 +86,25 @@ void main()
 	//--- Fetch, wrapped like a scroll register. -----------------------------
 	rc = mod( rc, RasterSize );
 	ivec2 ip = ivec2( clamp( rc, vec2( 0.0 ), RasterSize - 1.0 ) );
+
+	//--- Interlace: one field's lines, each covering its pair. --------------
+	//A field draws every other line of the laced raster, half a line apart
+	//from the other field, so on screen each of its lines spans a line pair
+	//and the other field's lines are not there. A detail one line high is
+	//therefore present in one field and absent in the next, and flickers at
+	//half the field rate. The flicker fixer buffered both fields and showed
+	//them woven, progressively, which is the whole raster -- the branch not
+	//taken. Line numbers count from the top; GL's rows count from the bottom.
+	if( Laced > 0.5 && FlickerFixer < 0.5 )
+	{
+		int rows = int( RasterSize.y );
+		int line = rows - 1 - ip.y;
+		int parity = int( Field );
+		if( ( line & 1 ) != parity )
+			line = line - 1 >= 0 ? line - 1 : parity;
+		ip.y = rows - 1 - line;
+	}
+
 	vec4 quantised = texelFetch( QuantTexture, ip, 0 );
 
 	//--- The grid between fat pixels. ---------------------------------------

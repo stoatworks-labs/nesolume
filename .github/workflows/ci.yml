@@ -24,6 +24,8 @@ jobs:
           # The FFGL SDK is a submodule. Without this CMake fails at configure
           # time with a missing-directory error that reads like a broken repo.
           submodules: recursive
+          # tools/compat.py builds the previous release's harness from its tag.
+          fetch-depth: 0
 
       - name: Configure
         # arm64 only, unlike the release build's universal arm64;x86_64 — the
@@ -41,7 +43,62 @@ jobs:
           -DNESOLUME_BUILD_TOOLS=ON
 
       - name: Build
-        run: cmake --build build --config Release --parallel
+        run: |
+          cmake --build build --config Release --parallel
+          cmake --build build --config Release --parallel --target netest_insert
+
+      - name: Parameters
+        # No GL: the table, the Resolume addresses, the glitch clock, and the
+        # HAM encoder against exhaustive search.
+        run: |
+          ./build/netest --names
+          ./build/netest --params
+          ./build/netest --glitch
+          ./build/netest --ham-optimal
+
+      - name: The Amiga
+        # The runner has no accelerated GL. NETEST_RENDERER=software asks for
+        # Apple's software renderer outright, so a local run of the same line
+        # reproduces this step exactly. 320x180; verify.sh runs them at
+        # 1280x1024 on the GPU too.
+        timeout-minutes: 20
+        env:
+          NETEST_RENDERER: software
+        run: |
+          ./build/netest --ham-edge --size 320x180
+          ./build/netest --ehb      --size 320x180
+          ./build/netest --palette  --size 320x180
+          ./build/netest --lace     --size 320x180
+          ./build/netest --negative --size 320x180
+
+      - name: Compatibility with the previous release
+        # Every existing console byte-identical to the last tag's own harness,
+        # rendered here on the same renderer, and the old parameter table
+        # unchanged. The negative control inserts the Amiga mid-list and must
+        # fail.
+        timeout-minutes: 20
+        env:
+          NETEST_RENDERER: software
+        run: |
+          python3 tools/compat.py --size 320x180 --jobs 2
+          python3 tools/compat.py --negative --size 320x180 --jobs 2
+
+      - name: Controls
+        # 1280x960, because the pixel grid fades out below ~2 output pixels a
+        # raster pixel and would read dead at a smaller size.
+        timeout-minutes: 20
+        env:
+          NETEST_RENDERER: software
+        run: python3 tools/sweep.py --jobs 2
+
+      - name: Pipe
+        # A reader that goes away must get exit 1, not SIGPIPE's silent 141.
+        run: |
+          set +e
+          head -c $(( 64 * 36 * 4 * 8 )) /dev/zero | ./build/netest --pipe --width 64 --height 36 2>/dev/null | head -c 1 >/dev/null
+          status=${PIPESTATUS[1]}
+          echo "netest --pipe exit $status"
+          test "$status" -eq 1
 
       # Uploading is not only for the artefact. This repo has no package
       # manifest, so github-actions is its only Dependabot ecosystem — and a

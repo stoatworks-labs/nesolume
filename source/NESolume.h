@@ -3,7 +3,9 @@
 #include <FFGLSDK.h>
 
 #include <chrono>
+#include <vector>
 
+#include "Amiga.h"
 #include "PassBuffer.h"
 #include "Presets.h"
 #include "StoatworksAboutParams.h"
@@ -74,7 +76,19 @@ private:
 		//About. FFGL has no window, so the name, the version and the links are
 		//parameters the host draws. See StoatworksAboutParams.h.
 		PT_ABOUT_FIRST,
-		PT_COUNT = PT_ABOUT_FIRST + stoatworks::about::kParamCount
+		PT_ABOUT_END = PT_ABOUT_FIRST + stoatworks::about::kParamCount,
+
+		//Amiga, v1.1.0. AFTER the About block, because every id above is one a
+		//saved composition or a mapping may already hold, and FFGL's ABI is by
+		//index: appending is the only change that moves none of them. They act
+		//only when Console is Amiga. See Amiga.h.
+		PT_AMIGA_MODE = PT_ABOUT_END,
+		PT_AMIGA_SCREEN,
+		PT_AMIGA_INTERLACE,
+		PT_AMIGA_FLICKER_FIXER,
+		PT_AMIGA_PALETTE,
+
+		PT_COUNT
 	};
 
 	/// The ParamID each presets::Param drives, in presets::Param order. The
@@ -113,6 +127,28 @@ public:
 	/// so two frames differ whether or not the tick moved.
 	float GlitchTickForTest( float seconds );
 
+	/// The Amiga's registers as the last frame chose them, register 0 first,
+	/// and what the display could show with them (EHB adds the twins). The
+	/// harness checks the rendered pixels against these.
+	const std::vector< nesolume::amiga::Colour12 >& AmigaBasePaletteForTest() const { return amigaBase; }
+	std::vector< nesolume::amiga::Colour12 > AmigaDisplayPaletteForTest() const;
+
+	/// Negative controls. Each perturbs one piece of the Amiga model so the
+	/// harness can prove the check that guards it fails. Never set by a host.
+	enum class Negative
+	{
+		None,
+		TwoGunModify,   ///< HAM may change two guns per pixel: --ham-edge must fail
+		RoundedHalfBrite,///< EHB twins rounded up, not shifted: --ehb must fail
+		EightBitPalette,///< registers not snapped to 12 bits: --palette must fail
+		FrozenField,    ///< the field never advances: --lace must fail
+	};
+	void SetNegativeForTest( Negative n ) { negative = n; }
+
+	/// Milliseconds the last frame spent in the CPU HAM encoder (and the
+	/// palette choice, and the two read-backs), for the README's cost line.
+	double AmigaCpuMsForTest() const { return amigaCpuMs; }
+
 private:
 
 
@@ -125,6 +161,20 @@ private:
 	nesolume::PassBuffer downresBuffer;//the picture on the console's raster
 	nesolume::PassBuffer tileBuffer;   //one texel per attribute cell: its mean colour
 	nesolume::PassBuffer quantBuffer;  //...quantised to the console's colours
+
+	//The Amiga's state. Registers carry over frame to frame so a moving
+	//picture's palette moves rather than jumps; `amigaKey` says which mode and
+	//register count they belong to, and a change re-seeds.
+	std::vector< nesolume::amiga::Colour12 > amigaBase;
+	int amigaKey = -1;
+	std::vector< unsigned char > amigaReadback;
+	std::vector< unsigned char > amigaEncoded;
+	double amigaCpuMs = 0.0;
+	Negative negative = Negative::None;
+
+	/// The clock elapsedSeconds last returned, in double: the field count needs
+	/// more than a float resolves at Resolume's clock values.
+	double lastElapsed = 0.0;
 
 	//---------------------------------------------------------------------
 	// The glitch tick.

@@ -18,6 +18,11 @@
       RGBBits  the machine had an RGB DAC of n bits per channel (Master
                System 2, Mega Drive 3, SNES/PlayStation 5). Colour choice is
                per-channel quantisation; no search, no table.
+      Amiga    programmable 12-bit colour registers, read by a bitplane mode
+               (32 colours, Extra Half-Brite, HAM6). The registers are chosen
+               per picture, so there is no master table here; Amiga.h holds
+               the machine, and its raster has a fixed width (320 or 640)
+               rather than one that follows the composition.
 
     The raster is described by its height only. These machines drew a fixed
     number of lines; how wide the picture was depended on what displayed it.
@@ -30,6 +35,7 @@ enum PaletteKind
 {
 	kPaletteFixed   = 0,
 	kPaletteRGBBits = 1,
+	kPaletteAmiga   = 2,//!< 12-bit colour registers chosen per picture; see Amiga.h
 };
 
 struct ConsoleSpec

@@ -26,14 +26,22 @@
 #include <zlib.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <csignal>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <map>
 #include <sstream>
 #include <string>
 #include <vector>
+
+// The Amiga checks live in amiga_checks.cpp.
+int runAmigaCheck( const std::string& which, int w, int h );
+int runAmigaNames( NESolume& plugin );
+int runAmigaParams( NESolume& plugin );
 
 namespace
 {
@@ -226,6 +234,33 @@ std::vector< unsigned char > buildTestPicture( int width, int height )
 //---------------------------------------------------------------------------
 CGLContextObj createContext()
 {
+	//NETEST_RENDERER=software asks for Apple's software renderer by id, on a
+	//Mac that has a GPU. It is what a GPU-less CI runner falls back to, so a
+	//check that fails only in CI can be reproduced here (wipe's switch).
+	const char* rendererChoice = std::getenv( "NETEST_RENDERER" );
+	if( rendererChoice != nullptr && std::strcmp( rendererChoice, "software" ) == 0 )
+	{
+		const CGLPixelFormatAttribute generic[] = {
+			kCGLPFAOpenGLProfile, static_cast< CGLPixelFormatAttribute >( kCGLOGLPVersion_GL4_Core ),
+			kCGLPFARendererID, static_cast< CGLPixelFormatAttribute >( kCGLRendererGenericFloatID ),
+			kCGLPFAColorSize, static_cast< CGLPixelFormatAttribute >( 24 ),
+			kCGLPFAAlphaSize, static_cast< CGLPixelFormatAttribute >( 8 ),
+			static_cast< CGLPixelFormatAttribute >( 0 )
+		};
+		CGLPixelFormatObj format = nullptr;
+		GLint formatCount        = 0;
+		if( CGLChoosePixelFormat( generic, &format, &formatCount ) != kCGLNoError || format == nullptr )
+			return nullptr;
+		CGLContextObj context = nullptr;
+		const CGLError error  = CGLCreateContext( format, nullptr, &context );
+		CGLDestroyPixelFormat( format );
+		if( error != kCGLNoError )
+			return nullptr;
+		CGLSetCurrentContext( context );
+		std::fprintf( stderr, "netest: NETEST_RENDERER=software, Apple's software renderer\n" );
+		return context;
+	}
+
 	//Accelerated first; fall back so the harness still runs somewhere without a
 	//GPU, where it will at least prove the shaders compile.
 	const CGLPixelFormatAttribute accelerated[] = {
@@ -455,6 +490,20 @@ void usage()
 		"  --measure         print the mean RGB of the middle of the picture\n"
 		"  --list            print every parameter and its default, then exit\n"
 		"  --glitch          a Glitch Rate change does not re-roll the machine's luck\n"
+		"  --size WxH        output size, for the checks below and for a render\n"
+		"\n"
+		"  The Amiga (Console = Amiga, v1.1.0). Each renders through the real plugin:\n"
+		"  --ham-edge        a hard edge takes exactly 3 pixels to arrive, 1 onto a register\n"
+		"  --ham-optimal     the per-line DP's error equals exhaustive search, lengths 1..6\n"
+		"  --ehb             every pixel is a register or one shifted right a bit per gun\n"
+		"  --palette         every pixel is 12-bit in every mode, faults on; HAM lines legal\n"
+		"  --lace            alternate lines change on alternate fields; a one-line detail\n"
+		"                    flickers at half the field rate; the flicker fixer removes it\n"
+		"  --negative        each of the four checks above FAILS on a perturbed model\n"
+		"  --ham-cost        what the CPU encoder costs, per frame\n"
+		"  --names           every parameter has a unique Resolume address\n"
+		"  --params          the parameter table, in oxbow probe's shape (tools/compat.py)\n"
+		"  NETEST_RENDERER=software  Apple's software renderer, what a GPU-less CI runner gets\n"
 		"\n"
 		"  --pipe            read raw RGBA frames from stdin, write them to stdout,\n"
 		"                    so real footage can be put through the chain:\n"
@@ -475,6 +524,9 @@ int main( int argc, char** argv )
 	bool keepAlpha = false;
 	bool listOnly = false;
 	bool glitchOnly = false;
+	std::string amigaCheck;
+	bool namesOnly  = false;
+	bool paramsOnly = false;
 	bool measure = false;
 	bool pipeMode = false;
 	float flatLevel = -1.0f;
@@ -511,6 +563,22 @@ int main( int argc, char** argv )
 			listOnly = true;
 		else if( arg == "--glitch" )
 			glitchOnly = true;
+		else if( arg == "--ham-edge" || arg == "--ham-optimal" || arg == "--ehb" || arg == "--palette" || arg == "--lace"
+		         || arg == "--negative" || arg == "--ham-cost" )
+			amigaCheck = arg;
+		else if( arg == "--names" )
+			namesOnly = true;
+		else if( arg == "--params" )
+			paramsOnly = true;
+		else if( arg == "--size" )
+		{
+			const std::string size = next();
+			if( std::sscanf( size.c_str(), "%dx%d", &width, &height ) != 2 )
+			{
+				std::fprintf( stderr, "netest: --size wants WxH, got '%s'\n", size.c_str() );
+				return 2;
+			}
+		}
 		else if( arg == "--set" )
 		{
 			const std::string assignment = next();
@@ -561,6 +629,12 @@ int main( int argc, char** argv )
 	// runs on a machine that cannot make a context at all.
 	if( glitchOnly )
 		return runGlitchTest();
+	if( namesOnly )
+		return runAmigaNames( plugin );
+	if( paramsOnly )
+		return runAmigaParams( plugin );
+	if( !amigaCheck.empty() && amigaCheck == "--ham-optimal" )
+		return runAmigaCheck( amigaCheck, width, height );//no GL at all
 
 	if( listOnly )
 	{
@@ -585,6 +659,15 @@ int main( int argc, char** argv )
 	{
 		std::fprintf( stderr, "netest: could not create an OpenGL 4.1 core context\n" );
 		return 1;
+	}
+
+	if( !amigaCheck.empty() )
+	{
+		std::printf( "GL %s / %s\n", glGetString( GL_VERSION ), glGetString( GL_RENDERER ) );
+		const int result = runAmigaCheck( amigaCheck, width, height );
+		CGLSetCurrentContext( nullptr );
+		CGLDestroyContext( context );
+		return result;
 	}
 
 	//In pipe mode stdout carries the video, so everything conversational has to
@@ -646,6 +729,10 @@ int main( int argc, char** argv )
 
 	if( pipeMode )
 	{
+		//A reader that goes away (`| head -c 1`, a killed ffmpeg) must end this
+		//with the short-write message and exit 1, not SIGPIPE's silent 141.
+		std::signal( SIGPIPE, SIG_IGN );
+
 		std::map< std::string, Track > tracks;
 		if( !scriptPath.empty() )
 		{

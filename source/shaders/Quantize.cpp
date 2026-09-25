@@ -30,7 +30,7 @@ uniform vec2 MaxUV;
 uniform vec2 RasterSize;
 uniform float TileSize;
 
-uniform float PaletteMode;//0 = fixed master palette, 1 = n bits per channel
+uniform float PaletteMode;//0 = fixed master palette, 1 = n bits per channel, 2 = HAM hand-over
 uniform float Bits;
 uniform vec3 Palette[ 64 ];
 uniform int PaletteCount;
@@ -101,7 +101,15 @@ void main()
 	float bayer = ( kBayer[ ( px.y % 4 ) * 4 + ( px.x % 4 ) ] + 0.5 ) / 16.0 - 0.5;
 
 	vec3 quantised;
-	if( PaletteMode > 0.5 )
+	if( PaletteMode > 1.5 )
+	{
+		//Hold-and-modify: the colour choice is a whole line's, not a pixel's,
+		//so it happens on the CPU (Amiga.h). This hands over the colour after
+		//clash, corruption and dither, dithered at one 12-bit step -- the
+		//corruption still happens before any colour is chosen.
+		quantised = clamp( color + bayer * Dither / 15.0, 0.0, 1.0 );
+	}
+	else if( PaletteMode > 0.5 )
 	{
 		float levels = exp2( Bits ) - 1.0;
 		vec3 dithered = clamp( color + bayer * Dither / levels, 0.0, 1.0 );

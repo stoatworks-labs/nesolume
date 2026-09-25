@@ -67,6 +67,8 @@ add_library(nesolume_core OBJECT
     source/PassBuffer.cpp
     source/Consoles.h
     source/Consoles.cpp
+    source/Amiga.h
+    source/Amiga.cpp
     source/Shaders.h
     source/shaders/Vertex.cpp
     source/shaders/Downres.cpp
@@ -121,10 +123,25 @@ endif()
 # that cannot drive Resolume.
 # ---------------------------------------------------------------------------
 if(NESOLUME_BUILD_TOOLS AND APPLE)
-    add_executable(netest tools/netest/main.cpp)
+    add_executable(netest tools/netest/main.cpp tools/netest/amiga_checks.cpp)
     # zlib ships with the OS, which is why the PNG writer is fifty lines here
     # rather than a vendored dependency.
     target_link_libraries(netest PRIVATE nesolume_core z
+        "-framework OpenGL"
+        "-framework AppKit"
+    )
+
+    # The --compat negative control: the same harness over a core whose
+    # console table has the Amiga INSERTED mid-list. Never shipped;
+    # tools/compat.py must fail against it. Its own object files, because the
+    # table is compiled in.
+    add_library(nesolume_core_insert OBJECT EXCLUDE_FROM_ALL $<TARGET_PROPERTY:nesolume_core,SOURCES>)
+    target_include_directories(nesolume_core_insert PUBLIC source)
+    target_link_libraries(nesolume_core_insert PUBLIC ffgl::sdk)
+    target_compile_definitions(nesolume_core_insert PUBLIC
+        NESOLUME_VERSION="${PROJECT_VERSION}" NESOLUME_COMPAT_NEGATIVE_INSERT=1)
+    add_executable(netest_insert EXCLUDE_FROM_ALL tools/netest/main.cpp tools/netest/amiga_checks.cpp)
+    target_link_libraries(netest_insert PRIVATE nesolume_core_insert z
         "-framework OpenGL"
         "-framework AppKit"
     )

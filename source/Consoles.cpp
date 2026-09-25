@@ -76,11 +76,24 @@ const ConsoleSpec kConsoles[] = {
 	{ "Game Boy", 144, 8, kPaletteFixed, 0, 4, 0 },
 	{ "NES", 240, 16, kPaletteFixed, 4, 64, 0 },
 	{ "ZX Spectrum", 192, 8, kPaletteFixed, 68, 15, 0 },
+#ifdef NESOLUME_COMPAT_NEGATIVE_INSERT
+	// The --compat negative control, never shipped: the new machine inserted
+	// mid-list, which renumbers every console after it. tools/compat.py must
+	// fail against the build this makes (netest_insert).
+	{ "Amiga", 256, 16, kPaletteAmiga, 0, 0, 0 },
+#endif
 	{ "Commodore 64", 200, 8, kPaletteFixed, 83, 16, 0 },
 	{ "Master System", 192, 8, kPaletteRGBBits, 0, 0, 2 },
 	{ "Mega Drive", 224, 8, kPaletteRGBBits, 0, 0, 3 },
 	{ "SNES", 224, 8, kPaletteRGBBits, 0, 0, 5 },
 	{ "PlayStation", 240, 8, kPaletteRGBBits, 0, 0, 5 },
+#ifndef NESOLUME_COMPAT_NEGATIVE_INSERT
+	// Appended in v1.1.0, and appended is the point: a saved composition holds
+	// the Console element VALUE, so every machine above keeps its number. The
+	// 16 is the bitplane fetch word, which is what a corrupted Amiga display
+	// displaces; there are no attribute cells, so Clash does nothing here.
+	{ "Amiga", 256, 16, kPaletteAmiga, 0, 0, 0 },
+#endif
 };
 
 constexpr int kConsoleCount = int( sizeof( kConsoles ) / sizeof( kConsoles[ 0 ] ) );

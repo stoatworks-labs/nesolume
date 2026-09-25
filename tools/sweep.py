@@ -23,8 +23,21 @@ Things that will fool you, learned across the fleet:
   * **The About block is not a control.** The text line and the link buttons
     are parameters only because FFGL has no other surface; they are skipped
     here, not swept.
+  * **The Amiga's controls act only on the Amiga** (Console 9, v1.1.0), so they
+    are swept against their own baseline: the Amiga in HAM6, on the PAL low-res
+    screen. Flicker Fixer acts only on an interlaced screen, so its baseline
+    has Interlace on.
+
+    python3 tools/sweep.py [--size WxH] [--jobs N]
 """
-import subprocess, zlib, struct, sys, os, tempfile
+import argparse, subprocess, zlib, struct, sys, os, tempfile
+from concurrent.futures import ThreadPoolExecutor
+
+ap = argparse.ArgumentParser()
+ap.add_argument("--size", default="1280x960")
+ap.add_argument("--jobs", type=int, default=1)
+ARGS = ap.parse_args()
+W, H = ARGS.size.split("x")
 
 SC = tempfile.mkdtemp(prefix="nesweep")
 
@@ -37,12 +50,18 @@ BASE = {
     "Glitch Rate": 0.3, "Mix": 1.0,
 }
 
+# The Amiga's baseline, and the controls that are swept against it.
+AMIGA_BASE = {**BASE, "Console": 9, "Amiga Mode": 2, "Screen Mode": 0, "Interlace": 0,
+              "Flicker Fixer": 0, "Amiga Palette": 0}
+AMIGA = {"Amiga Mode": {}, "Screen Mode": {}, "Interlace": {}, "Amiga Palette": {},
+         "Flicker Fixer": {"Interlace": 1}}
+
 # Not controls: the About block exists only because FFGL has no window.
 SKIP = {"About", "User guide", "Project page", "Source on GitHub", "Support the work"}
 
-def render(path, overrides):
-    args = ["./build/netest", "--out", path, "--width", "1280", "--height", "960", "--frames", "5"]
-    merged = dict(BASE); merged.update(overrides)
+def render(path, overrides, base=None):
+    args = ["./build/netest", "--out", path, "--width", W, "--height", H, "--frames", "5"]
+    merged = dict(BASE if base is None else base); merged.update(overrides)
     for k, v in merged.items():
         args += ["--set", f"{k}={v}"]
     r = subprocess.run(args, capture_output=True, text=True)
@@ -74,18 +93,23 @@ params = [' '.join(l.split()[1:-1]) for l in names.strip().splitlines()]
 params = [p for p in params if p not in SKIP]
 
 # Options are discrete; sweep them across their real element range.
-DISCRETE = {"Console": (0, 8), "Preset": (0, 8)}
+DISCRETE = {"Console": (0, 9), "Preset": (0, 8), "Amiga Mode": (0, 2), "Screen Mode": (0, 3),
+            "Amiga Palette": (0, 1), "Interlace": (0, 1), "Flicker Fixer": (0, 1)}
+
+def sweep(p):
+    lo, hi = DISCRETE.get(p, (0.0, 1.0))
+    base = {**AMIGA_BASE, **AMIGA[p]} if p in AMIGA else None
+    a = render(f"{SC}/{p}-a.png", {p: lo}, base)
+    b = render(f"{SC}/{p}-b.png", {p: hi}, base)
+    return p, diff(a, b)
 
 print(f"{'parameter':<20} {'pixels changed':>15} {'mean delta':>11}   verdict")
 dead = []
-for p in params:
-    lo, hi = DISCRETE.get(p, (0.0, 1.0))
-    a = render(f"{SC}/a.png", {p: lo})
-    b = render(f"{SC}/b.png", {p: hi})
-    pct, mean = diff(a, b)
-    ok = pct > 0.5
-    if not ok: dead.append(p)
-    print(f"{p:<20} {pct:14.2f}% {mean:11.3f}   {'ok' if ok else '*** NO EFFECT ***'}")
+with ThreadPoolExecutor(max_workers=ARGS.jobs) as pool:
+    for p, (pct, mean) in pool.map(sweep, params):
+        ok = pct > 0.5
+        if not ok: dead.append(p)
+        print(f"{p:<20} {pct:14.2f}% {mean:11.3f}   {'ok' if ok else '*** NO EFFECT ***'}")
 
 print()
 if dead:
