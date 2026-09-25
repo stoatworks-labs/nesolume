@@ -208,17 +208,168 @@ ofxprobe (see CLAUDE.md): render, `--set mix=0` identity (0 bytes), and
 `--edit preset=N` against hand-set values (byte-identical). The factory is
 deliberately heap-leaked in `getPluginIDs` — the fleet's exit-teardown trap.
 
+## 5c. The Amiga (v1.1.0)
+
+Allan picked this on 2026-09-25 as the last item of tranche five; the spec is
+`~/Projects/resolume/specs/SPEC-nesolume-amiga.md`. It is a **minor release of
+a released plugin**, so the rule above all others was: change nothing that
+already shipped.
+
+### The machine
+
+`source/Amiga.{h,cpp}` is the machine, CPU only, no GL: the 12-bit colour
+registers, the three bitplane modes, the four screens, the field clock, the
+palette choice and the HAM6 encoder. The facts and their sources are in the
+header (Hardware Reference Manual ch. 3 and Appendix A, the same ones
+copperlist emulates). `Consoles.cpp` gains one row, `kPaletteAmiga`, at the
+end.
+
+The pipeline for the Amiga, in `NESolume::ProcessOpenGL`:
+
+```
+Downres    to 320/640 x 256/200 (x2 laced), not the composition's aspect
+  read-back  the clean raster -> k-means -> the registers (or the Fixed set)
+Tile       as before (16 = the bitplane fetch word; Clash is forced to 0)
+Quantize   OCS/EHB/high res: the existing nearest-colour path over the registers
+           HAM6: PaletteMode 2, a hand-over of the corrupted, dithered colour
+  read-back  HAM6 only -> amiga::encodeHamFrame on the CPU -> upload
+Display    as before, plus the laced field (Laced/Field/FlickerFixer)
+```
+
+### Decisions taken without asking
+
+- **Appended, twice.** The Amiga is Console element 9, after the PlayStation;
+  the five controls (`Amiga Mode`, `Screen Mode`, `Interlace`, `Flicker Fixer`,
+  `Amiga Palette`) come **after the About block**, boreal's precedent, because
+  that is the only place new ids move nothing. Resolume addresses parameters by
+  name (memory `resolume-params-by-name`), so a middle insertion would restore
+  there, but FFGL's ABI and other hosts are by index. Names checked unique as
+  Resolume reduces them (`netest --names`: 25 parameters, 25 addresses).
+  They get their own group, `Amiga`, and are inert on every other console.
+- **No new presets.** A preset covering the Amiga controls would have reset
+  them from every existing preset, and the OpenFX build shares the table.
+  Presets.h is untouched.
+- **The raster is fixed-width and stretched.** Every other machine's width
+  follows the composition so pixels stay square; the Amiga's is 320 or 640
+  because a HAM line's length *is* the constraint. Pixel Size still scales
+  both dimensions.
+- **High res is 16 colours in every mode**: OCS fetches four planes there, so
+  EHB and HAM do not exist. `Amiga Mode` is honestly inert in high res.
+- **Registers per frame by k-means over the 12-bit histogram**, seeded from the
+  last frame's registers so a moving picture's palette drifts rather than
+  jumps; a mode or count change re-seeds. Deterministic farthest-point start.
+  Sorted darkest first, because register 0 is the background and the colour a
+  HAM line starts from. EHB fits the 32 bases and their half twins together
+  (c = (4Σx + 2Σy) / (4n + m)). **Fixed**: sixteen greys for HAM6, a 27-cube
+  plus five for 32, corners plus eight for high res.
+- **EHB halves by `v >> 1`**, as Denise does: 15 becomes 7.
+- **HAM6's line starts from register 0** (the background), per the HRM.
+- **The HAM error is integer, weighted 3:6:1** (close to the luma weights the
+  shader's nearest search uses), so the optimum is an exact number and two
+  searches compare with `==`.
+- **HAM6 dither is one 12-bit step** of the Bayer offset, applied in the shader
+  before the hand-over, so the corruption and the dither stay in their one home.
+- **Interlace is a bob.** A field shows its own lines, each covering its line
+  pair; the other field's lines are not drawn. A one-line detail is there in
+  one field and gone in the next (25/30 Hz), edges twitter, and a uniform area
+  does not move at all. Decided against a phosphor-persistence model, in which
+  every pixel of every area alternates between full and decayed brightness at
+  25 Hz: that is a whole-picture 25 Hz grating, which is both not what anyone
+  perceived and a photosensitivity risk. The field is `floor(t x rate + 1e-6)`
+  in **double**, from real elapsed time (copperlist's decision: 50 and 60
+  exactly). `elapsedSeconds` now records the double it returns.
+- **Output alpha stays one bit**, as for every console (Resolume's demo clips
+  are DXV with alpha; the decision predates this and is unchanged).
+- **The OpenFX build leaves the Amiga out.** Its Console list skips
+  `kPaletteAmiga`; since the Amiga is last, nothing renumbers.
+- **The laced mode's flicker was measured on the demo clips** (held still, so
+  the clip's own frame cadence is not in it): at most 0.8% of white field to
+  field over the whole frame and 3.8% in the worst 40-px block, against the
+  flash guidelines' 10% (IntoTheGlow_02, Trinity, Cyberspace, Galactucity,
+  OrganicMotions, NeonRoom2, Metalive, SpaceUniverse; OCS and HAM6). Synthetic
+  one-line gratings (a laced Workbench) can do far more; that is the look.
+
+### The HAM6 encoder
+
+A Viterbi over the previous pixel's colour, 4,096 states, exact. It never
+stores 4,096 costs: a modify of red cannot see the old red, a palette register
+can follow anything, so the only things one pixel reads from the one before
+are the best cost over each gun with the other two fixed (three 16x16 tables)
+and the best of all. Each step computes the next three tables in closed form
+from those (`Amiga.cpp`, with the algebra in comments). ~7,000 integer
+operations a pixel; the backtrack re-derives each pixel's colour from the
+stored tables.
+
+**It costs** (`netest --ham-cost`, M4 Max, 16 cores, a shared machine):
+HAM_COST_AGENTS The plugin uses `hardware_concurrency / 2` threads, 1..8.
+
+### Traps this release found
+
+- **"A hard edge takes exactly three pixels" is not what the optimum does.**
+  Under squared error the exact encoder takes FIVE on a big edge — it steps two
+  guns through a midpoint (5 -> 8 -> 11) because two half-errors cost less
+  than one whole one. Three is the floor, not the answer. So `--ham-edge`
+  measures three things: a one-level edge (no midpoint exists) arrives in
+  exactly 3, a search of the codes says 3 is the fewest, and a big edge
+  arrives in 5, never fewer than 3.
+- **Initialising the whole backtrack table per line was a third of the
+  encoder**: 321 x 772 ints = 1 MB of `fill` per line, 256 MB a frame. Only
+  the first table needs it. 78 ms -> 24 ms single-threaded, with the loops
+  rewritten as sixteen-wide add/min runs so they vectorise.
+- **v1.0.7's harness ignores `NETEST_RENDERER`**, so a first software-renderer
+  compat run compared the old build on the GPU with the new one in software
+  and "found" thousands of differing bytes on every console. `tools/compat.py`
+  now patches the same switch into the reference harness (the harness only;
+  the plugin code is the tag's). Diagnosed by reverting both shader edits and
+  still seeing the difference.
+- **A lace check row on a line boundary is a coin toss.** At 320x180 an output
+  row whose centre lands exactly on a raster-line boundary (row 94 of 180 on a
+  400-line raster) may sample either line. The check picks rows whose centre
+  is 0.2..0.8 into a line.
+- **The worktree guard reads command text**: `git -C $W` is "the shared
+  checkout", and a heredoc inside a blocked command never writes its file. Use
+  literal paths in a zsh script; write message files with the Write tool.
+
+### Would this hold on another rasteriser, at another raster?
+
+Every check runs at 1280x1024 and 320x180 on the GPU and at 320x180 on Apple's
+software renderer (`NETEST_RENDERER=software`, what CI gets), in verify.sh.
+
+| Check | Holds because | Tolerance |
+| --- | --- | --- |
+| `--ham-edge` | The source is given at the Amiga raster (320x256) whatever the output size: the downres reads the input's size, so each raster pixel is one exact 12-bit source colour and the edge sits on a pixel boundary. Output read at raster-pixel centres. | none: colours compared as 12-bit values |
+| `--ham-optimal` | CPU integers, no GL. | exact `==` |
+| `--ehb`, `--palette` | Every output pixel is a register fetched from an RGBA8 texture and written through `mix(x, y, 1.0)`: float error is a few ulps, far below half an 8-bit level, so `v % 17 == 0` survives any conforming rasteriser. | 0 levels |
+| `--lace` | The source is given at the laced raster; the detail row is chosen 0.2..0.8 into a raster line; comparisons are of whole rows and whole frames. | on > 200, off < 20 (of 255), uniform spread 0 |
+| `--compat` | Old and new are rendered on the SAME renderer in the same run, so rasteriser differences cancel; only a change in the programs or their inputs shows. | 0 bytes |
+| sweep | a control that moves < 0.5% of pixels is dead; 1280x960 so the grid is resolvable | 0.5% |
+
+### A check that cannot fail is not a check
+
+`netest --negative` perturbs the model and requires each check to FAIL:
+
+| Perturbation (`NESolume::Negative`) | Check | Result |
+| --- | --- | --- |
+| HAM may change two guns per pixel | `--ham-edge` | caught (the one-level edge arrives in 2) |
+| EHB twins rounded up, not shifted | `--ehb` | caught |
+| registers one 8-bit level off the 12-bit grid | `--palette` | caught (2 lines) |
+| the field never advances | `--lace` | caught (5 lines) |
+| the Amiga inserted mid-list (`netest_insert`) | `tools/compat.py --negative` | caught (21 at 320x180, 41 at two sizes) |
+| a greedy HAM encoder | `--ham-optimal` | loses to the exhaustive optimum on 50 of 242 lines |
+
+**The recorded GLSL mutation** (2026-09-25): in `Display.cpp`,
+`( line & 1 ) != parity` became `==` — one character. `--lace` failed seven
+lines at 320x180 (the detail's phase, the 100 Hz pattern, all four
+odd/even-line checks, NTSC); `--palette` still passed, as it should. Reverted.
+
 ## 6. What has never been checked
 
-- **It has never been loaded into Resolume.** The bundle is installed to
-  `~/Documents/Resolume Arena/Extra Effects/`, but nobody has launched Arena
-  with it yet: parameter groups, the Console and Preset dropdowns, Arena's
-  real texture sizes and premultiplication behaviour are all unconfirmed.
-  Those are exactly what the offline harness cannot tell you about, because
-  it supplies its own textures.
+- ARENA_AGENTS_BULLET
 - **Whether Resolume consumes `FF_EVENT_FLAG_VALUE`** — a preset changes the
   picture regardless, but stale sliders in the inspector are possible.
-- **The Windows build has never been compiled or run.** No CI is set up yet.
+- **The Windows build is compiled by CI and has never been run on a real
+  Windows host outside the Arena gate.** (This line used to say it had never
+  been compiled; ci.yml and release.yml have both existed since v0.1.0.)
 - **The universal macOS build has been built and `lipo`-verified, never run
   on Intel.**
 - Performance figures (0.17 ms/frame at 1080p, 0.56 ms at 4K) come from one

@@ -27,7 +27,7 @@ settings read as a machine failing rather than a video effect succeeding.
   `%USERPROFILE%\Documents\Resolume Arena\Extra Effects\`, or run the
   installer.
 
-It appears in the effects list as **NESolume**.
+It appears in the effects list as **SW NESolume**.
 
 **Resolve and other OFX hosts:** copy `NESolume.ofx.bundle` into
 `/Library/OFX/Plugins/` (macOS),
@@ -56,6 +56,7 @@ share colours.
 | Mega Drive | 224 | 512 (3 bits per channel) | 8×8 |
 | SNES | 224 | 32,768 (5 bits per channel) | 8×8 |
 | PlayStation | 240 | 32,768 (5 bits per channel) | 8×8 |
+| Amiga | 256 or 200, doubled when laced | 12-bit registers: 32, 64 (EHB) or HAM6 | none |
 
 The line count is the console's; the width follows your composition's aspect,
 so pixels stay square on any output. **Pixel Size** scales the whole raster —
@@ -65,6 +66,78 @@ Two things follow from the palette being real. Corrupted colours are still
 that machine's colours — a glitched Game Boy can only choose among four
 greens. And a generous palette clashes gently — the SNES has colours to
 spare, the Spectrum does not, and the controls behave accordingly.
+
+## The Amiga
+
+New in v1.1.0, and the last entry in the Console list. Pick **Amiga** and the
+controls in the **Amiga** group come alive (they do nothing on any other
+console, and the machines above them are exactly as they were).
+
+![The harness test card's discs, straight (top) and through HAM6 over the sixteen grey registers (bottom): colour smears in from the left of every edge, one gun a pixel](amiga-ham.png)
+
+*The harness test card's discs, straight (top) and through HAM6 over the Fixed palette of sixteen greys (bottom): each disc's colour arrives over several pixels from its left edge, one gun at a time — the HAM fringe. Rendered by the plugin's own offline harness.*
+
+Every colour the Amiga shows is a **12-bit register**: four bits a gun, 4,096
+colours in all, so any gradient bands in sixteen steps per gun. How the
+registers are used is the **Amiga Mode**:
+
+- **OCS 32 Colours** — 32 registers, chosen for the picture. A clean,
+  posterised look; the classic Deluxe Paint screen.
+- **Extra Half-Brite** — the same 32, plus each one at exactly half
+  brightness (every gun shifted right one bit), for 64. Shadows and dark
+  versions of every colour come free; the dark twins are always exactly half.
+- **HAM6** — hold-and-modify. Each pixel is either one of 16 registers or
+  **the pixel to its left with one gun changed**. A picture gets thousands of
+  colours, but a hard edge between two unrelated colours cannot arrive in one
+  step: it takes at least three pixels, one gun each, and the encoder often
+  spreads it wider because that looks closer to the picture. The result is
+  the smear of colour trailing to the right of every sharp edge that HAM is
+  famous for. It is strongest on hard-edged graphics and saturated colours
+  over a contrasting ground; soft footage mostly just gains colours.
+
+**Screen Mode** picks the Amiga's screen: **PAL Low Res** (320 × 256 at 50 Hz,
+the default), **NTSC Low Res** (320 × 200 at 60 Hz), and the two **High Res**
+screens at 640 wide. The picture is the Amiga's own raster stretched to your
+composition, as a monitor set to fill would show it, so the pixels are not
+square — a HAM line being 320 pixels long is the constraint, so the plugin
+keeps it. High res has sixteen colours in every mode: the chipset could only
+fetch four bitplanes there, so Extra Half-Brite and HAM6 did not exist in high
+res, and do not here. (Pixel Size still scales the raster.)
+
+**Interlace** doubles the lines — 512 PAL, 400 NTSC — and, like the real
+thing, shows them as two fields of alternate lines, 50 or 60 a second, timed
+from real elapsed time. Anything one line high is in one field and missing
+from the next, so fine horizontal detail flickers at 25 or 30 Hz and edges
+twitter up and down a line. **Flicker Fixer** is the cure Amiga owners bought:
+both fields woven into one steady full-height frame. It does nothing unless
+Interlace is on.
+
+> **A note on flicker.** Laced mode is a 25 Hz (PAL) or 30 Hz (NTSC) flicker by
+> design, which is inside the band that can trigger photosensitive epilepsy.
+> On Resolume's own demo clips it is small — measured field to field at most
+> 0.8% of white over the whole frame and 3.8% in the worst small block — but a
+> picture made of thin horizontal lines (text, a grille, a laced Workbench)
+> flickers much harder. Check laced footage before it goes on a big screen,
+> and use Flicker Fixer or leave Interlace off when in doubt.
+
+**Amiga Palette** chooses the registers:
+
+- **Per Frame** (the default) — chosen for each picture, the way a paint
+  program or converter would, by clustering the picture's colours in 12-bit
+  space. Each frame starts from the last frame's choice, so on moving footage
+  the palette drifts with the picture instead of jumping.
+- **Fixed** — one set that never changes: sixteen greys for HAM6 (which
+  makes the fringes most visible, since every colour then has to be built by
+  modification), and a fixed 32 (or 16 in
+  high res) for the others. Choose it when you want no palette movement at all.
+
+The other controls still apply. **Dither** works as on every machine (for
+HAM6 at one 12-bit step). The glitches still corrupt the picture *before*
+any colour is chosen, so a failing Amiga shows wrong colours, never illegal
+ones. **Attribute Clash** does nothing: the Amiga had no attribute cells.
+
+The Amiga is in the Resolume (FFGL) plugin only; the OpenFX build for Resolve
+and friends does not have it.
 
 ## The Picture controls
 
@@ -126,6 +199,9 @@ never covered — how much of the effect is in the programme is yours.
 The expensive work runs at the console raster regardless of composition
 size: about 0.17 ms per frame at 1080p and 0.56 ms at 4K on an Apple M4 Max.
 Chunkier pixels are cheaper still.
+
+The Amiga costs more, because it chooses its registers on the CPU every frame
+and HAM6 is encoded on the CPU: GUIDE_PERF
 
 ## If the effect does nothing
 

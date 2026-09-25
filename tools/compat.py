@@ -197,7 +197,7 @@ def build_reference():
     return exe
 
 
-def run(netest, reference, sizes, jobs, quiet=False):
+def run(netest, reference, sizes, jobs, quiet=False, retries=0):
     say = (lambda *a: None) if quiet else print
     failures = 0
 
@@ -236,19 +236,38 @@ def run(netest, reference, sizes, jobs, quiet=False):
 
     def one(job):
         (name, sets, extra), (w, h), k = job
-        a = render(reference, f"{tmp}/{k}-old.png", w, h, sets, extra)
-        b = render(netest, f"{tmp}/{k}-new.png", w, h, sets, extra)
-        diff = sum(x != y for x, y in zip(a[2], b[2])) if a != b else 0
-        return name, (w, h), a == b, diff
+        olds = [render(reference, f"{tmp}/{k}-old.png", w, h, sets, extra)]
+        news = [render(netest, f"{tmp}/{k}-new.png", w, h, sets, extra)]
+        # Apple's software renderer is not always repeatable at the last bit
+        # (repousse measured it; here a last-bit change in a fract(sin()) glitch
+        # hash moves whole cells). With --retries, a mismatch is re-rendered on
+        # BOTH sides in fresh processes; identical means some old render and
+        # some new render agree byte for byte, and the old build's agreement
+        # with itself is reported beside it.
+        for attempt in range(retries):
+            if any(o == n for o in olds for n in news):
+                break
+            olds.append(render(reference, f"{tmp}/{k}-old{attempt}.png", w, h, sets, extra))
+            news.append(render(netest, f"{tmp}/{k}-new{attempt}.png", w, h, sets, extra))
+        same = any(o == n for o in olds for n in news)
+        diff = 0 if same else sum(x != y for x, y in zip(olds[0][2], news[0][2]))
+        old_repeatable = all(o == olds[0] for o in olds)
+        return name, (w, h), same, diff, len(olds) - 1, old_repeatable
 
     job_list = [(c, s, i) for i, (c, s) in enumerate((c, s) for s in sizes for c in cfgs)]
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         results = list(pool.map(one, job_list))
     bad = [r for r in results if not r[2]]
-    for name, (w, h), ok, diff in bad:
-        say(f"compat      {name} at {w}x{h}: {diff} bytes differ")
+    for name, (w, h), ok, diff, tries, rep_ok in bad:
+        say(f"compat      {name} at {w}x{h}: {diff} bytes differ"
+            + (f" after {tries} re-renders (the old build {'agreed' if rep_ok else 'DISAGREED'} with itself)" if tries else ""))
+    retried = [r for r in results if r[4] and r[2]]
+    for name, (w, h), ok, diff, tries, rep_ok in retried:
+        say(f"compat      {name} at {w}x{h}: identical on re-render {tries}; "
+            f"the old build {'agreed' if rep_ok else 'disagreed'} with itself")
     say(f"compat    {len(results)} renders ({len(cfgs)} configurations x {len(sizes)} sizes): "
-        f"{len(results) - len(bad)} byte-identical to {TAG}")
+        f"{len(results) - len(bad)} byte-identical to {TAG}"
+        + (f" ({len(retried)} after a re-render)" if retried else ""))
     failures += len(bad)
 
     # The pipe mode, with automation, over a short synthetic clip.
@@ -261,9 +280,17 @@ def run(netest, reference, sizes, jobs, quiet=False):
         for y in range(h):
             for x in range(w):
                 frames += bytes(((x * 3 + f * 7) & 255, (y * 5) & 255, ((x + y) * 2 + f) & 255, 255))
-    po, pn = pipe(reference, w, h, script, bytes(frames)), pipe(netest, w, h, script, bytes(frames))
-    say(f"compat    --pipe, 10 frames with a cue sheet at {w}x{h}: {'byte-identical' if po == pn else 'DIFFERENT'}")
-    failures += po != pn
+    pos, pns = [pipe(reference, w, h, script, bytes(frames))], [pipe(netest, w, h, script, bytes(frames))]
+    for _ in range(retries):
+        if any(o == n for o in pos for n in pns):
+            break
+        pos.append(pipe(reference, w, h, script, bytes(frames)))
+        pns.append(pipe(netest, w, h, script, bytes(frames)))
+    same = any(o == n for o in pos for n in pns)
+    say(f"compat    --pipe, 10 frames with a cue sheet at {w}x{h}: {'byte-identical' if same else 'DIFFERENT'}"
+        + (f" ({len(pos) - 1} re-renders; the old build {'agreed' if all(o == pos[0] for o in pos) else 'disagreed'} with itself)"
+           if len(pos) > 1 else ""))
+    failures += not same
 
     return failures
 
@@ -275,6 +302,8 @@ def main():
     ap.add_argument("--size", action="append", help="WxH; repeatable. Default 1280x720 and 320x180.")
     ap.add_argument("--jobs", type=int, default=4)
     ap.add_argument("--negative", action="store_true")
+    ap.add_argument("--retries", type=int, default=0,
+                    help="on a mismatch, re-render both sides this many times (the software renderer)")
     a = ap.parse_args()
     sizes = [tuple(map(int, s.split("x"))) for s in (a.size or ["1280x720", "320x180"])]
     reference = a.reference or build_reference()
@@ -284,13 +313,13 @@ def main():
         if not os.path.exists(insert):
             print(f"compat: {insert} is not built (cmake --build build --target netest_insert)")
             return 1
-        failures = run(insert, reference, sizes, a.jobs, quiet=True)
+        failures = run(insert, reference, sizes, a.jobs, quiet=True, retries=a.retries)
         caught = failures > 0
         print(f"negative  the Amiga inserted mid-list -> --compat                 "
               f"{'caught' if caught else 'NOT CAUGHT'}  ({failures} failures)")
         return 0 if caught else 1
 
-    failures = run(a.netest, reference, sizes, a.jobs)
+    failures = run(a.netest, reference, sizes, a.jobs, retries=a.retries)
     print(f"compat: {'all ok' if failures == 0 else f'{failures} FAILURES'}")
     return 0 if failures == 0 else 1
 

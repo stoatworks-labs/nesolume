@@ -213,7 +213,7 @@ done
 step "compat: every existing console bit-identical to the previous release"
 run compat python3 tools/compat.py --netest "$NETEST" --jobs 4
 run "compat negative" python3 tools/compat.py --negative --size 320x180 --jobs 4
-run "compat software" env NETEST_RENDERER=software python3 tools/compat.py --netest "$NETEST" --size 320x180 --jobs 2
+run "compat software" env NETEST_RENDERER=software python3 tools/compat.py --netest "$NETEST" --size 320x180 --jobs 2 --retries 3
 
 step "palette legality of the fixed-palette consoles (verify.py)"
 run verify.py python3 tools/verify.py

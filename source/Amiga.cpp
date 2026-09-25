@@ -116,8 +116,8 @@ std::vector< Colour12 > fixedPalette( int mode, bool hires )
 	{
 		// Sixteen greys. The palette is where a HAM line goes when it cannot
 		// afford three pixels to arrive, and a grey is one step from any
-		// colour sharing its level in one gun -- which is why so many HAM
-		// pictures of the period were drawn over a grey ramp.
+		// colour sharing its level in one gun. With no chromatic register
+		// every colour is built by modification, so the fringes show most.
 		for( int v = 0; v < 16; ++v )
 			p.push_back( { uint8_t( v ), uint8_t( v ), uint8_t( v ) } );
 	}

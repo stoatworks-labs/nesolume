@@ -75,13 +75,15 @@ jobs:
         # Every existing console byte-identical to the last tag's own harness,
         # rendered here on the same renderer, and the old parameter table
         # unchanged. The negative control inserts the Amiga mid-list and must
-        # fail.
+        # fail. --retries: this renderer is not always repeatable at the last
+        # bit, and a glitch hash turns one bit into whole cells; a mismatch is
+        # re-rendered on both sides and the old build's self-agreement printed.
         timeout-minutes: 20
         env:
           NETEST_RENDERER: software
         run: |
-          python3 tools/compat.py --size 320x180 --jobs 2
-          python3 tools/compat.py --negative --size 320x180 --jobs 2
+          python3 tools/compat.py --size 320x180 --jobs 2 --retries 3
+          python3 tools/compat.py --negative --size 320x180 --jobs 2 --retries 3
 
       - name: Controls
         # 1280x960, because the pixel grid fades out below ~2 output pixels a

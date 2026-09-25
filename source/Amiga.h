@@ -8,8 +8,12 @@
     encoder directly on short lines and compare it with an exhaustive search,
     and the OpenFX build could link it without a context.
 
-    The facts (Amiga Hardware Reference Manual, 3rd edition, chapter 3, and
-    Appendix A's COLORxx; the same ones copperlist emulates):
+    The facts (Amiga Hardware Reference Manual, chapter 3 and Appendix A's
+    COLORxx, the same ones copperlist emulates; the HAM and EHB rules were
+    re-read on 2026-09-25 from the ADCD 2.1 copy at amigadev.elowar.com,
+    Hardware_Manual_guide nodes 008F "Hold-And-Modify Mode", 0098 "Color
+    Selection in Extra Half Brite (EHB) Mode" and 0068 "Selecting the Number
+    of Bitplanes"):
 
     - **Colour registers are 12 bits**: four bits per gun, 4,096 colours. Every
       colour the machine shows is one of those, so a gradient bands in sixteen
@@ -20,13 +24,18 @@
     - **Five bitplanes = 32 registers.** A pixel's five bits index them
       straight; register 0 is the background.
     - **Extra Half-Brite** (six planes, low res, not HAM): a pixel value of
-      32..63 shows register n-32 with each gun shifted right one bit. Half
-      brightness is `v >> 1`, truncating -- 15 becomes 7, not 7.5.
+      32..63 shows register n-32 "shifted to half-intensity" (node 0098).
+      That the shift truncates each 4-bit gun -- `v >> 1`, so 15 becomes 7 --
+      is this model's reading of "shifted", and what the secondary accounts
+      of the chip describe; the manual gives no worked value.
     - **Hold-and-modify** (six planes, low res, HOMOD): the top two bits say
       what the low four mean. 00: a palette index into the first sixteen
       registers. 01: keep the previous pixel's red and green, set BLUE to the
-      four bits. 10: set RED. 11: set GREEN. At the left edge of every line the
-      "previous pixel" is the background colour, register 0.
+      four bits. 10: set RED. 11: set GREEN (node 008F, verbatim). Low res
+      only (HIRES must be 0). At the left edge of a line the "previous pixel"
+      is taken to be the background colour, register 0: the manual says a
+      HAM screen can be treated "as a modification of that original color",
+      COLOR00, and gives no other starting value -- a reading, stated.
     - **Interlace** draws 512 (PAL) or 400 (NTSC) lines as two fields of
       alternate lines, 50 or 60 fields a second.
 

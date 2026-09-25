@@ -6,15 +6,18 @@
 > plugin class in a headless GL context — every rendered pixel is checked
 > against its console's master palette even with corruption at full, every
 > control is proven to change the picture, and presets render byte-identically
-> to their hand-set values (see [Status](#status)). It has **not yet been
-> loaded into Resolume**. Check it in your own rig before trusting it in a
-> show.
+> to their hand-set values. The Amiga added in v1.1.0 is checked the same way:
+> its HAM6 encoder against an exhaustive search, every pixel against the
+> 12-bit registers, the interlaced fields frame by frame, and every existing
+> console byte for byte against v1.0.7 (see [Status](#status)). ARENA_STATUS_LINE
+> Check it in your own rig before trusting it in a show.
 
 Retro console video hardware for [Resolume](https://resolume.com) Arena and
 Avenue, as an FFGL effect: the raster, the palette, the attribute cells — and
 the ways they failed.
 
-**Video:** [What it does, in 52 seconds](https://www.youtube.com/watch?v=a3zUwJ6kPfM)
+**Video:** [The Amiga, in VIDEO_SECONDS seconds](https://www.youtube.com/watch?v=VIDEO_ID)
+ · [the nine consoles, from v1.0](https://www.youtube.com/watch?v=a3zUwJ6kPfM)
 
 ![NES: the 2C02 palette with dither and attribute clash](docs/nes.png)
 
@@ -67,15 +70,52 @@ the expensive work runs at the console raster, so 4K costs barely more than
 | **Mega Drive** | 224 | 3 bits per channel (512) | 8×8 |
 | **SNES** | 224 | 5 bits per channel (32,768) | 8×8 |
 | **PlayStation** | 240 | 5 bits per channel | 8×8 |
+| **Amiga** (v1.1.0) | 320 or 640 wide × 256 or 200 lines, doubled laced | 12-bit colour registers, chosen for the picture: 32, Extra Half-Brite's 64, or HAM6 | none — every pixel indexes the registers on its own |
 
 The raster is the console's line count; the width follows your composition's
 aspect so pixels stay square on screen. Pixel Size scales the whole raster
-from quarter-size pixels to four-times chunky, with native at the centre.
+from quarter-size pixels to four-times chunky, with native at the centre. The
+Amiga is the exception, below.
+
+## The Amiga
+
+Added in v1.1.0, at the end of the Console list so every saved composition
+keeps its machine. The Amiga's display modes are constraints of exactly the
+kind this plugin models, and one of them is famous:
+
+| Mode | The constraint | What you see |
+| --- | --- | --- |
+| **OCS 32 Colours** | Five bitplanes index 32 colour registers. | A picture posterised into 32 colours chosen for it. |
+| **Extra Half-Brite** | A sixth bitplane shows register *n* with every gun shifted right one bit. | 64 colours: 32 chosen, and their exact dark twins. |
+| **HAM6** | Hold-and-modify: each pixel is one of 16 registers, **or the previous pixel with one gun changed**. | Colour smears rightwards off every hard edge. A change of all three guns takes at least three pixels to arrive; the encoder often spreads it wider, through midpoints, because that costs less error. That smear is the HAM fringe. |
+
+Every colour is a **12-bit** register value — four bits a gun, 4,096 colours —
+so a gradient bands in sixteen steps whatever the mode. The registers are
+chosen per picture (k-means in 12-bit space, each frame starting from the
+last so a moving picture's palette moves rather than jumps), or fixed.
+
+The raster is the Amiga's own: **320 pixels by 256 lines** on a PAL low-res
+screen, 200 on NTSC, 640 in high res — stretched to the composition as a
+monitor set to fill would, not square, because a HAM line being 320 pixels
+long *is* the constraint. High res fetches four bitplanes at most, so it is 16
+colours in every mode: the chipset could not do EHB or HAM there, and neither
+does this.
+
+**Interlace** doubles the lines and shows them as two fields, one of alternate
+lines at a time, 50 or 60 fields a second from real elapsed time. A detail one
+line high is in one field and not the next, so it flickers at 25 or 30 Hz and
+horizontal edges twitter — the laced Workbench everyone remembers. **Flicker
+Fixer** is the cure the period sold: both fields woven into one steady frame.
+
+HAM is not a per-pixel choice, so it cannot run in a shader. The line is
+encoded on the CPU, exactly: a Viterbi over the previous pixel's colour whose
+state is three 16×16 tables rather than 4,096 colours. On an M4 Max it costs
+HAM_COST_LINE
 
 ## Controls
 
-Grouped in the inspector as **Picture**, **Distortion**, **Glitch** and
-**Output**.
+Grouped in the inspector as **Picture**, **Distortion**, **Glitch**,
+**Output**, **Preset** and, last, **Amiga**.
 
 ### Picture
 
@@ -114,6 +154,24 @@ Grouped in the inspector as **Picture**, **Distortion**, **Glitch** and
 **Preset** holds eight factory looks, from *Handheld* to *Kill Screen*.
 Picking one copies its values into the sliders; touching a covered slider
 hands control back to Custom.
+
+### Amiga
+
+These act only when Console is **Amiga**. They sit after the About block
+because appending is the only change that moves no existing parameter.
+
+| Control | What it is |
+| --- | --- |
+| **Amiga Mode** | OCS 32 Colours, Extra Half-Brite or HAM6. Low res only; high res is 16 colours whichever you pick. |
+| **Screen Mode** | PAL Low Res (320×256, 50 Hz), NTSC Low Res (320×200, 60 Hz), PAL High Res (640×256), NTSC High Res (640×200). |
+| **Interlace** | Twice the lines, shown a field at a time. |
+| **Flicker Fixer** | Weave both fields into one steady frame. Only does anything with Interlace on. |
+| **Amiga Palette** | Per Frame: the registers chosen for the picture. Fixed: one content-independent set per mode (sixteen greys for HAM6, where every colour has to be built by modification and the fringes show most). |
+
+Dither applies (at one 12-bit step for HAM6), and every glitch still happens
+before colour choice, so a corrupted Amiga shows wrong registers, never an
+illegal colour. Attribute Clash does nothing: the Amiga had no attribute
+cells.
 
 ## Try it in your browser
 
@@ -201,7 +259,7 @@ Drop the plugin into Resolume's plugin folder and restart it:
 - **macOS** — `~/Documents/Resolume Arena/Extra Effects/` (or `Resolume Avenue`)
 - **Windows** — `%USERPROFILE%\Documents\Resolume Arena\Extra Effects\`
 
-It appears in the effects list as **NESolume**.
+It appears in the effects list as **SW NESolume**.
 
 ## Build
 
@@ -254,13 +312,48 @@ value` lines, linearly interpolated between keys.
 
 Verified through the offline harness on an M4 Max:
 
+- **Adding the Amiga changed nothing else.** `tools/compat.py` renders 71
+  configurations — every console, the faults, both ends of every old control,
+  every preset, a 40-frame glitch run, the pipe mode with a cue sheet —
+  through v1.0.7's own harness, built from its tag, and through this one, at
+  1280×720 and 320×180: every byte identical, on the GPU and on Apple's
+  software renderer. The 20 parameters v1.0.7 declared keep their index,
+  name, type, default, group and option values, read against `oxbow probe`
+  of the released v1.0.7 bundle. With the Amiga inserted mid-list instead of
+  appended, the same check fails (41 differences).
+- **HAM6 is optimal.** The per-line encoder's error equals an exhaustive
+  search over every one of the 64 six-bit codes per pixel on 242 random lines
+  of 1 to 6 pixels, its output is always displayable HAM6, and a greedy
+  encoder loses to it on 50 of them.
+- **A HAM edge arrives as the hardware allows.** Through the plugin, on
+  PAL low res over the grey registers: an edge of one level in all three guns
+  takes exactly 3 pixels (and a search of the codes says 3 is the fewest);
+  a big edge, (2,9,5) to (15,3,11), takes 5 — never fewer than 3; an edge
+  onto a register takes 1, at the edge. Letting HAM change two guns at once
+  makes the check fail.
+- **Every Amiga pixel is 12-bit and legal**, in all six mode and screen
+  combinations with every fault on: OCS and high res stay on their registers,
+  EHB on its 32 or their exact half-brite twins (and it really uses both),
+  every HAM line sampled is displayable HAM6. Rounding the twins instead of
+  shifting them, or nudging the registers off the 12-bit grid, fails it.
+- **Interlace behaves.** In laced mode a changed odd line moves nothing in an
+  even field and does move the odd one, and the other way round; a one-line
+  detail is on, off, on at 50 fields/s and on, on, off, off sampled at 100 Hz;
+  a uniform area does not move at all; the flicker fixer holds the detail
+  steady; NTSC alternates at 60. A field clock that never advances fails it.
+  On eight of Resolume's demo clips held still, laced mode changes at most
+  0.8% of white field to field over the whole frame, 3.8% in the worst 40-px
+  block.
+- Every check holds at 1280×1024 and 320×180, on the GPU and on the software
+  renderer, and one changed character in the interlace GLSL fails seven of
+  them.
 - **Every pixel is a legal colour of its console**, checked pixel-by-pixel
   against the master palettes with dither, clash and every corruption control
   switched on (`tools/verify.py`): all 4 Game Boy greens, 54 distinct NES
   colours out of the 2C02's 64 entries, all 15 Spectrum colours, all 16 C64
   colours, and the Custom console at 1 bit landing on exactly the 8 corners
   of the RGB cube.
-- **All 15 controls demonstrably do something.** `tools/sweep.py` renders
+- **All 20 controls demonstrably do something.** `tools/sweep.py` renders
   every parameter at both ends of its range and fails if any made no
   difference — the only way to catch a uniform name that does not match
   between the C++ and the GLSL, since that fails silently.
@@ -275,9 +368,10 @@ Verified through the offline harness on an M4 Max:
 
 Not verified:
 
-- **Never loaded into Resolume.** The parameter groups, the Console and
-  Preset dropdowns, and Arena's real texture sizes and premultiplication
-  behaviour are all unconfirmed — the harness supplies its own textures.
+- ARENA_STATUS_BULLET
+- **The Amiga is not in the OpenFX build.** Its HAM encoder and field clock
+  are wired into the FFGL chain only; the OpenFX Console list stops at the
+  PlayStation.
 - **The OpenFX build renders and proves itself through ofxprobe** (identity
   at Mix 0 is exact, presets render byte-identically to hand-set values,
   every output pixel is palette-legal) — but it has never been loaded into a
