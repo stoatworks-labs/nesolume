@@ -266,7 +266,8 @@ if [ "$BUILD" = "build-verify" ]; then
 	archs="$( lipo -archs "$BUILD/NESolume.bundle/Contents/MacOS/NESolume" )"
 	printf '   lipo: %s\n' "$archs"
 	case "$archs" in *arm64*x86_64*|*x86_64*arm64*) ;; *) failures=$(( failures + 1 ));; esac
-	ver="$( /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$BUILD/NESolume.bundle/Contents/Info.plist" 2>/dev/null )"
+	# cmake/Info.plist.in writes CFBundleVersion only (it always has).
+	ver="$( /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$BUILD/NESolume.bundle/Contents/Info.plist" 2>/dev/null )"
 	want="$( sed -n 's/^ *VERSION \([0-9.]*\)$/\1/p' CMakeLists.txt | head -1 )"
 	printf '   plist version %s (CMakeLists %s)\n' "$ver" "$want"
 	[ "$ver" = "$want" ] || failures=$(( failures + 1 ))
@@ -276,7 +277,7 @@ if [ "$BUILD" = "build-verify" ]; then
 	OXBOW="${OXBOW:-$HOME/Projects/resolume/oxbow/build/oxbow}"
 	if [ -x "$OXBOW" ]; then
 		probe="$( "$OXBOW" probe "$BUILD/NESolume.bundle" 2>&1 )"
-		printf '%s\n' "$probe" | sed -n 's/^\(name\|id\|type\|params\):/   &/p'
+		printf '%s\n' "$probe" | grep -E '^(name|id|type|params):' | sed 's/^/   /'
 		printf '%s\n' "$probe" | grep -q '^name: *SW NESolume$' && printf '%s\n' "$probe" | grep -q '^id: *NE01$' \
 			&& printf '%s\n' "$probe" | grep -q '^type: *effect$' || failures=$(( failures + 1 ))
 		# The host's view of the table against the previous release's.

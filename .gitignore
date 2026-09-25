@@ -11,3 +11,6 @@
 /.vscode/
 *.xcodeproj/xcuserdata/
 /build-*/
+
+# Python bytecode (verify.sh imports tools/compat.py)
+__pycache__/
