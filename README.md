@@ -250,12 +250,12 @@ console table is the same code; the four GPU stages are mirrored on the CPU,
 constant for constant, and the glitch clock runs off the timeline frame — so
 any frame renders identically however the host reaches it.
 
-**Fusion reports no frame rate; there, time-based controls assume 24 fps.**
-Resolve's Fusion page gives an OpenFX plugin no frame rate at all, and the first
-OpenFX builds failed every render there. Now NESolume falls back to 24, Resolve's
-default timeline rate, so in Fusion the glitch clock runs as if the composition were
-24 fps whatever its real rate. A host that reports a rate, Resolve's Edit page
-included, gets its own.
+**Resolve's Fusion page reports the frame rate on the effect but not on its clips.**
+The first OpenFX builds read a clip's rate, which Fusion leaves out, and failed
+every render there. Now NESolume asks the output clip, the source clip and then the
+effect, so in Fusion the glitch clock runs at the timeline's own rate (checked at 24
+and 25 fps). It assumes 24 fps, Resolve's default timeline rate, only where a host
+reports no rate at all.
 
 Grab the `nesolume-ofx-*` zip for your platform from the release and copy
 `NESolume.ofx.bundle` into the standard OpenFX folder, then restart the host:
