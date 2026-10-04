@@ -54,8 +54,9 @@ published** (cover SHA-pinned to cd25626), both embed homes updated, demo
 page carries the video link. A build.py ffmpeg encode hung once at 0% CPU
 for 50 min — kill and rerun, it then took 3 min.
 
-**Never run inside Resolume or Resolve** (bundle installed to Extra Effects,
-loading verified only via ffgltest); Windows built in CI (DLL, OpenFX bundle and
+**Never run inside Resolume on macOS** (bundle installed to Extra Effects,
+loading verified only via ffgltest); **in Resolve only as a Fusion tool** (the
+v1.1.1 frame-rate fix, 2026-10-04); Windows built in CI (DLL, OpenFX bundle and
 NSIS installer, all shipped since v0.1.0) but never run. The README used to say
 the Windows build had never been compiled and that there was no CI; both were
 wrong — ci.yml and release.yml have both existed since the first release.

@@ -390,8 +390,10 @@ Not verified:
   PlayStation.
 - **The OpenFX build renders and proves itself through ofxprobe** (identity
   at Mix 0 is exact, presets render byte-identically to hand-set values,
-  every output pixel is palette-legal) — but it has never been loaded into a
-  real Resolve.
+  every output pixel is palette-legal). In Resolve it has only been a Fusion
+  tool: v1.1.1's Fusion fix rendered there in a render job, in Resolve Studio
+  21.1 (2026-10-04). The Edit and Color pages, Vegas, Nuke and Natron have
+  never seen it.
 - **The Windows build has never been run.** It compiles: the tag-triggered
   release workflow builds the FFGL DLL and the OpenFX bundle on
   `windows-latest`, packages an NSIS installer, and every release since v0.1.0
