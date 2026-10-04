@@ -21,6 +21,20 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.."
 
+# oxbow, the FFGL test host. It sits beside this repo's checkout -- and from
+# a git worktree `..` is the worktrees folder, not Projects/resolume, so the
+# main checkout is found through git's common dir as well. OXBOW names the
+# binary outright.
+OXBOW_REPO=""
+for candidate in "../oxbow" \
+                 "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)")/../oxbow"; do
+	if [ -d "$candidate/build" ]; then
+		OXBOW_REPO="$candidate"
+		break
+	fi
+done
+OXBOW_REPO="${OXBOW_REPO:-../oxbow}"
+
 failures=0
 
 step() {
@@ -274,7 +288,7 @@ if [ "$BUILD" = "build-verify" ]; then
 	codesign --force --sign - "$BUILD/NESolume.bundle" >/dev/null 2>&1 \
 		&& codesign --verify "$BUILD/NESolume.bundle" && printf '   ad-hoc signature verifies\n' \
 		|| failures=$(( failures + 1 ))
-	OXBOW="${OXBOW:-$HOME/Projects/resolume/oxbow/build/oxbow}"
+	OXBOW="${OXBOW:-$OXBOW_REPO/build/oxbow}"
 	if [ -x "$OXBOW" ]; then
 		probe="$( "$OXBOW" probe "$BUILD/NESolume.bundle" 2>&1 )"
 		printf '%s\n' "$probe" | grep -E '^(name|id|type|params):' | sed 's/^/   /'
