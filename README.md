@@ -1,20 +1,19 @@
 # NESolume
 
 > **AI-assisted project.** This codebase was created with [Claude](https://claude.com/claude-code)
-> (Anthropic), directed and reviewed by a human author. The chain has been
-> verified numerically through an offline render harness that drives the real
-> plugin class in a headless GL context — every rendered pixel is checked
-> against its console's master palette even with corruption at full, every
-> control is proven to change the picture, and presets render byte-identically
-> to their hand-set values. The Amiga added in v1.1.0 is checked the same way:
-> its HAM6 encoder against an exhaustive search, every pixel against the
-> 12-bit registers, the interlaced fields frame by frame, and every existing
-> console byte for byte against v1.0.7 (see [Status](#status)). On Windows, v1.1.0 passed the fleet's Arena gate in Resolume Arena 7.27.1 (all 9 checks, every control moving the picture); it has **not been loaded into Resolume on macOS**.
-> Check it in your own rig before trusting it in a show.
+> (Anthropic), directed and reviewed by a human author. I've checked the chain
+> numerically with an offline harness that drives the real plugin class without a host:
+> every pixel lands in its console's palette even with corruption at full, every control
+> changes the picture, and presets match their hand-set values byte for byte. The Amiga, new
+> in v1.1.0, gets the same treatment, and every existing console still renders byte for byte
+> as it did in v1.0.7 (see [Status](#status)). On Windows, v1.1.0 passed the fleet's Arena
+> gate in Resolume Arena 7.27.1 (all 9 checks, every control moving the picture), but it has
+> **not been loaded into Resolume on macOS**. Check it in your own rig before trusting it in
+> a show.
 
 Retro console video hardware for [Resolume](https://resolume.com) Arena and
-Avenue, as an FFGL effect: the raster, the palette, the attribute cells — and
-the ways they failed.
+Avenue, as an FFGL effect: the raster, the palette, the attribute cells, and
+all the ways they went wrong.
 
 **Video:** [The Amiga, in 57 seconds](https://www.youtube.com/watch?v=Y0gmZVjUg8A)
  · [the nine consoles, from v1.0](https://www.youtube.com/watch?v=a3zUwJ6kPfM)
@@ -23,8 +22,8 @@ the ways they failed.
 
 <sub>The harness test card through the NES: posterised into the 2C02 palette,
 Bayer dither working the gradients, and the 16×16 attribute areas bleeding
-hue exactly the way the hardware forced them to. All rendered by `netest`,
-the repo's offline harness.</sub>
+hue just the way the hardware forced them to. All rendered by `netest`, the
+repo's offline harness.</sub>
 
 | | |
 | --- | --- |
@@ -34,14 +33,14 @@ the repo's offline harness.</sub>
 ![Mega Drive with corrupted VRAM](docs/corrupted.png)
 
 <sub>The same card through a Mega Drive whose VRAM has stopped being told the
-truth: torn lines, displaced tiles, rotated palettes, garbage tiles — every
-pixel still a colour the machine could produce.</sub>
+truth: torn lines, displaced tiles, rotated palettes and garbage tiles, with
+every pixel still a colour the machine could produce.</sub>
 
-NESolume is not a pixelate filter with a tint on it. It averages the picture
-down onto a real machine's raster, forces it through that machine's colour
-system with the attribute cells enforced, and scales it back up as fat
-pixels. The recognisable artefacts are **consequences** of the constraints
-rather than features that were drawn on:
+NESolume averages the picture down onto a real machine's raster, forces it
+through that machine's colour system with the attribute cells enforced, and
+scales it back up as fat pixels, which is a fair bit more than a pixelate
+filter with a tint on it. The artefacts you'd recognise fall out of the
+constraints rather than being drawn on:
 
 | What you see | Why it happens |
 | --- | --- |
@@ -50,11 +49,11 @@ rather than features that were drawn on:
 | **Glitches that stay in palette** | Corruption happens to the *indices*, before colour choice — a real glitch scrambled CRAM and tile pointers, not the DAC. Nothing a broken cartridge showed was ever outside the palette, and nothing here is either. |
 | **Blocks and torn lines that land cleanly** | Displacement is scroll-register damage: whole raster pixels, whole tiles, wrapping around the edge the way a scroll register wraps. |
 
-Two things follow from modelling it this way. The controls interact like the
-hardware did — palette corruption on a Game Boy can only choose among four
-greens, and attribute clash on a machine with a generous palette is mild
-because the palette is generous. And everything is resolution-independent:
-the expensive work runs at the console raster, so 4K costs barely more than
+Two things follow from modelling it this way. The controls interact the way
+the hardware did: palette corruption on a Game Boy can only choose among four
+greens, and attribute clash on a machine with a generous palette is mild,
+because the palette is generous. And everything is resolution-independent.
+The expensive work runs at the console raster, so 4K costs barely more than
 1080p.
 
 ## The consoles
@@ -72,16 +71,16 @@ the expensive work runs at the console raster, so 4K costs barely more than
 | **PlayStation** | 240 | 5 bits per channel | 8×8 |
 | **Amiga** (v1.1.0) | 320 or 640 wide × 256 or 200 lines, doubled laced | 12-bit colour registers, chosen for the picture: 32, Extra Half-Brite's 64, or HAM6 | none — every pixel indexes the registers on its own |
 
-The raster is the console's line count; the width follows your composition's
-aspect so pixels stay square on screen. Pixel Size scales the whole raster
+The raster is the console's line count, and the width follows your
+composition's aspect so pixels stay square on screen. Pixel Size scales the whole raster
 from quarter-size pixels to four-times chunky, with native at the centre. The
 Amiga is the exception, below.
 
 ## The Amiga
 
 Added in v1.1.0, at the end of the Console list so every saved composition
-keeps its machine. The Amiga's display modes are constraints of exactly the
-kind this plugin models, and one of them is famous:
+keeps its machine. The Amiga's display modes are just the kind of constraint
+this plugin models, and one of them is famous:
 
 | Mode | The constraint | What you see |
 | --- | --- | --- |
@@ -89,28 +88,34 @@ kind this plugin models, and one of them is famous:
 | **Extra Half-Brite** | A sixth bitplane shows register *n* with every gun shifted right one bit. | 64 colours: 32 chosen, and their exact dark twins. |
 | **HAM6** | Hold-and-modify: each pixel is one of 16 registers, **or the previous pixel with one gun changed**. | Colour smears rightwards off every hard edge. A change of all three guns takes at least three pixels to arrive; the encoder often spreads it wider, through midpoints, because that costs less error. That smear is the HAM fringe. |
 
-Every colour is a **12-bit** register value — four bits a gun, 4,096 colours —
+Every colour is a **12-bit** register value (four bits a gun, 4,096 colours),
 so a gradient bands in sixteen steps whatever the mode. The registers are
 chosen per picture (k-means in 12-bit space, each frame starting from the
 last so a moving picture's palette moves rather than jumps), or fixed.
 
 The raster is the Amiga's own: **320 pixels by 256 lines** on a PAL low-res
-screen, 200 on NTSC, 640 in high res — stretched to the composition as a
-monitor set to fill would, not square, because a HAM line being 320 pixels
-long *is* the constraint. High res fetches four bitplanes at most, so it is 16
-colours in every mode: the chipset could not do EHB or HAM there, and neither
-does this.
+screen, 200 on NTSC, 640 in high res, stretched to the composition the way a
+monitor set to fill would, rather than square, because a HAM line being 320
+pixels long *is* the constraint. High res fetches four bitplanes at most, so
+it's 16 colours in every mode: the chipset couldn't do EHB or HAM there, and
+neither does this.
 
 **Interlace** doubles the lines and shows them as two fields, one of alternate
 lines at a time, 50 or 60 fields a second from real elapsed time. A detail one
 line high is in one field and not the next, so it flickers at 25 or 30 Hz and
-horizontal edges twitter — the laced Workbench everyone remembers. **Flicker
-Fixer** is the cure the period sold: both fields woven into one steady frame.
+horizontal edges twitter. That's the laced Workbench everyone remembers,
+usually along with the headache. **Flicker Fixer** is the cure the period
+sold: both fields woven into one steady frame.
 
-HAM is not a per-pixel choice, so it cannot run in a shader. The line is
-encoded on the CPU, exactly: a Viterbi over the previous pixel's colour whose
-state is three 16×16 tables rather than 4,096 colours. On an M4 Max it costs
-about 4 ms a frame for PAL low res (6 laced) on the CPU, eight threads, measured by `netest --ham-cost` at 1080p on a heavily loaded M4 Max (load average 21): the encoder alone is 2.3 ms on eight threads and 17 ms on one for 320×256, and choosing the registers plus the two read-backs is about 1 ms. The other Amiga modes cost about 1 ms on the CPU. Most of the chain is still the GPU's and still runs at the Amiga raster.
+HAM isn't a per-pixel choice, so it can't run in a shader. The line is encoded
+exactly, on the CPU: a Viterbi over the previous pixel's colour whose state is
+three 16×16 tables rather than 4,096 colours. On an M4 Max it costs about 4 ms
+a frame for PAL low res (6 laced) on the CPU with eight threads. That's
+measured by `netest --ham-cost` at 1080p on a heavily loaded M4 Max (load
+average 21): the encoder alone is 2.3 ms on eight threads and 17 ms on one for
+320×256, and choosing the registers plus the two read-backs is about 1 ms. The
+other Amiga modes cost about 1 ms on the CPU. Most of the chain is still on the
+GPU and still runs at the Amiga raster.
 
 ## Controls
 
@@ -152,13 +157,14 @@ Grouped in the inspector as **Picture**, **Distortion**, **Glitch**,
 | **Mix** | Wet/dry against the untouched input. |
 
 **Preset** holds eight factory looks, from *Handheld* to *Kill Screen*.
-Picking one copies its values into the sliders; touching a covered slider
+Picking one copies its values into the sliders, and touching a covered slider
 hands control back to Custom.
 
 ### Amiga
 
-These act only when Console is **Amiga**. They sit after the About block
-because appending is the only change that moves no existing parameter.
+These only act when Console is **Amiga**. They sit after the About block
+because adding them at the end is the only change that doesn't move an
+existing parameter.
 
 | Control | What it is |
 | --- | --- |
@@ -170,34 +176,34 @@ because appending is the only change that moves no existing parameter.
 
 Dither applies (at one 12-bit step for HAM6), and every glitch still happens
 before colour choice, so a corrupted Amiga shows wrong registers, never an
-illegal colour. Attribute Clash does nothing: the Amiga had no attribute
-cells.
+illegal colour. Attribute Clash does nothing, because the Amiga didn't have
+attribute cells.
 
 ## Try it in your browser
 
 **<https://nesolume-demo.stoatworks-labs.com>**
 
-Not the plugin — the GLSL from `source/shaders/`, copied across unedited and
-run in WebGL2 over clips generated in the page, with the parameters this
-plugin's constructor declares. No install, and nothing you load leaves your
-machine.
+This is the GLSL from `source/shaders/`, copied across unedited and run in
+WebGL2 over clips generated in the page, with the parameters this plugin's
+constructor declares, rather than the plugin itself. There's nothing to
+install, and nothing you load leaves your machine.
 
 All four stages run, at the console raster. Pick the ZX Spectrum, turn
 Attribute Clash to full and drag your own image in to watch the cells argue
-about it — or check the plugin's own claim right there: every glitch control
-at full on a fixed-palette console still never produces a colour the machine
-could not.
+about it. Or check the plugin's claim for yourself: every glitch control at
+full on a fixed-palette console still never produces a colour the machine
+couldn't.
 
-The Amiga is there too. Its CPU half — choosing the registers and the exact
-HAM6 encoder — is a JavaScript port of `source/Amiga.cpp`, checked against the
+The Amiga is there too. Its CPU half (choosing the registers, and the exact
+HAM6 encoder) is a JavaScript port of `source/Amiga.cpp`, checked against the
 C++ line for line by `demo/tools/check_port.sh`, and it runs in Web Workers
-because it is about ten times slower than the plugin: while playing, the page
-shows the last finished encode, a few frames behind the clip, and says so.
+because it's about ten times slower than the plugin. While it's playing, the
+page shows the last finished encode, a few frames behind the clip, and says so.
 
-It is a port, so it is not evidence about the plugin: a browser is not
-Resolume, and its console table is a maintained second copy of
-`source/Consoles.cpp`. The numbers worth trusting are in [Status](#status)
-and come from the offline harness in this repository.
+It's a port, so it isn't evidence about the plugin: a browser isn't Resolume,
+and its console table is a second copy of `source/Consoles.cpp` that's
+maintained separately. The numbers worth trusting are in [Status](#status),
+and they come from the offline harness in this repo.
 
 <!-- downloads:start -->
 
@@ -246,9 +252,9 @@ macOS builds are signed and notarised and open normally. The Windows builds are 
 
 The same machine model also builds as an OpenFX plugin, so it runs in DaVinci
 Resolve (Edit and Color pages, and Fusion), Vegas Pro, Nuke and Natron. The
-console table is the same code; the four GPU stages are mirrored on the CPU,
-constant for constant, and the glitch clock runs off the timeline frame — so
-any frame renders identically however the host reaches it.
+console table is the same code, the four GPU stages are mirrored on the CPU
+constant for constant, and the glitch clock runs off the timeline frame, so
+any frame renders identically however the host gets to it.
 
 **Resolve's Fusion page reports the frame rate on the effect but not on its clips.**
 The first OpenFX builds read a clip's rate, which Fusion leaves out, and failed
@@ -291,8 +297,8 @@ folder above.
 ## Looking at it without Resolume
 
 `netest` renders the real chain to a PNG through a headless GL context. It
-drives the actual plugin class through the actual FFGL entry sequence, so it
-is testing the shipped code rather than a copy of it.
+drives the actual plugin class through the actual FFGL entry sequence, so it's
+testing the shipped code rather than a copy of it.
 
 ```bash
 ./build/netest --out /tmp/frame.png --width 1920 --height 1080
@@ -318,7 +324,7 @@ from stdin and writing them to stdout:
 ffmpeg -i in.mov -f rawvideo -pix_fmt rgba - | ./build/netest --pipe --width 1920 --height 1080 --script params.txt | ffmpeg -f rawvideo -pix_fmt rgba -s 1920x1080 -r 30 -i - out.mp4
 ```
 
-`--script` is parameter automation — a text file of `frame  Parameter Name
+`--script` is parameter automation: a text file of `frame  Parameter Name
 value` lines, linearly interpolated between keys.
 
 ## Status
@@ -326,8 +332,8 @@ value` lines, linearly interpolated between keys.
 Verified through the offline harness on an M4 Max:
 
 - **Adding the Amiga changed nothing else.** `tools/compat.py` renders 71
-  configurations — every console, the faults, both ends of every old control,
-  every preset, a 40-frame glitch run, the pipe mode with a cue sheet —
+  configurations (every console, the faults, both ends of every old control,
+  every preset, a 40-frame glitch run, the pipe mode with a cue sheet)
   through v1.0.7's own harness, built from its tag, and through this one, at
   1280×720 and 320×180: every byte identical, on the GPU and on Apple's
   software renderer. The 20 parameters v1.0.7 declared keep their index,
@@ -341,7 +347,7 @@ Verified through the offline harness on an M4 Max:
 - **A HAM edge arrives as the hardware allows.** Through the plugin, on
   PAL low res over the grey registers: an edge of one level in all three guns
   takes exactly 3 pixels (and a search of the codes says 3 is the fewest);
-  a big edge, (2,9,5) to (15,3,11), takes 5 — never fewer than 3; an edge
+  a big edge, (2,9,5) to (15,3,11), takes 5, and never fewer than 3; an edge
   onto a register takes 1, at the edge. Letting HAM change two guns at once
   makes the check fail.
 - **Every Amiga pixel is 12-bit and legal**, in all six mode and screen
@@ -352,7 +358,7 @@ Verified through the offline harness on an M4 Max:
 - **Interlace behaves.** In laced mode a changed odd line moves nothing in an
   even field and does move the odd one, and the other way round; a one-line
   detail is on, off, on at 50 fields/s and on, on, off, off sampled at 100 Hz;
-  a uniform area does not move at all; the flicker fixer holds the detail
+  a uniform area doesn't move at all; the flicker fixer holds the detail
   steady; NTSC alternates at 60. A field clock that never advances fails it.
   On nine of Resolume's demo clips held still, laced mode changes at most
   1.2% of white field to field over the whole frame, 3.8% in the worst 40-px
@@ -368,7 +374,7 @@ Verified through the offline harness on an M4 Max:
   of the RGB cube.
 - **All 20 controls demonstrably do something.** `tools/sweep.py` renders
   every parameter at both ends of its range and fails if any made no
-  difference — the only way to catch a uniform name that does not match
+  difference. It's the only way to catch a uniform name that doesn't match
   between the C++ and the GLSL, since that fails silently.
 - **Presets are honest.** A preset renders byte-identically to setting its
   values by hand.
@@ -385,12 +391,12 @@ Verified through the offline harness on an M4 Max:
 Not verified:
 
 - **Never loaded into Resolume on macOS.** On Windows, v1.1.0's DLL passed the fleet's Arena gate in Resolume Arena 7.27.1 on win-lab (Mesa llvmpipe, no GPU), 9 of 9: it loads, registers as SW NESolume / NE01, all 26 host controls match the constructor in name, order, type, range and default, it renders, all 21 valued controls move the picture (seven under a precondition, the Amiga's five among them), and Arena logged no shader or error line. That says nothing about speed or about a real GPU driver.
-- **The Amiga is not in the OpenFX build.** Its HAM encoder and field clock
+- **The Amiga isn't in the OpenFX build.** Its HAM encoder and field clock
   are wired into the FFGL chain only; the OpenFX Console list stops at the
   PlayStation.
 - **The OpenFX build renders and proves itself through ofxprobe** (identity
   at Mix 0 is exact, presets render byte-identically to hand-set values,
-  every output pixel is palette-legal). In Resolve it has only been a Fusion
+  every output pixel is palette-legal). In Resolve it's only been a Fusion
   tool: v1.1.1's Fusion fix rendered there in a render job, in Resolve Studio
   21.1 (2026-10-04). The Edit and Color pages, Vegas, Nuke and Natron have
   never seen it.
@@ -398,8 +404,8 @@ Not verified:
   release workflow builds the FFGL DLL and the OpenFX bundle on
   `windows-latest`, packages an NSIS installer, and every release since v0.1.0
   has shipped all three. Nobody has loaded any of them into a Windows host.
-- **The universal macOS build has been built and `lipo`-verified, never run
-  on an Intel machine.**
+- **The universal macOS build has been built and `lipo`-verified, but never
+  run on an Intel machine.**
 
 <!-- attributions:start -->
 This project is built on other people's work — see [ATTRIBUTIONS.md](ATTRIBUTIONS.md).
