@@ -400,10 +400,11 @@ Not verified:
   tool: v1.1.1's Fusion fix rendered there in a render job, in Resolve Studio
   21.1 (2026-10-04). The Edit and Color pages, Vegas, Nuke and Natron have
   never seen it.
-- **The Windows build has never been run.** It compiles: the tag-triggered
-  release workflow builds the FFGL DLL and the OpenFX bundle on
-  `windows-latest`, packages an NSIS installer, and every release since v0.1.0
-  has shipped all three. Nobody has loaded any of them into a Windows host.
+- **The Windows build has never been run outside the Arena gate above.** It
+  compiles: the tag-triggered release workflow builds the FFGL DLL and the
+  OpenFX bundle on `windows-latest`, packages an NSIS installer, and every
+  release since v0.1.0 has shipped all three. Apart from v1.1.0's DLL in that
+  gate, nobody has loaded any of them into a Windows host.
 - **The universal macOS build has been built and `lipo`-verified, but never
   run on an Intel machine.**
 

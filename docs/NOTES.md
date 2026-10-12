@@ -7,7 +7,7 @@ person and dated by when each thing was learned — that date is usually the use
 Cross-cutting notes that are not specific to this repo live in
 [fleet-notes](https://github.com/stoatworks-labs/fleet-notes).
 
-*nesolume — retro console video hardware (raster/palette/attribute cells + glitches), FFGL + OFX; PUBLIC MIT, v0.1.0 RELEASED 2026-08-04 with demo + website + guide; never loaded into Resolume*
+*nesolume — retro console video hardware (raster/palette/attribute cells + glitches), FFGL + OFX; PUBLIC MIT, v0.1.0 RELEASED 2026-08-04 with demo + website + guide; never loaded into Resolume on macOS*
 
 **nesolume** (started 2026-08-03) — retro console video hardware as an FFGL
 effect for Resolume: downsample to a console raster, quantise through its
@@ -57,7 +57,8 @@ for 50 min — kill and rerun, it then took 3 min.
 **Never run inside Resolume on macOS** (bundle installed to Extra Effects,
 loading verified only via ffgltest); **in Resolve only as a Fusion tool** (the
 v1.1.1 frame-rate fix, 2026-10-04); Windows built in CI (DLL, OpenFX bundle and
-NSIS installer, all shipped since v0.1.0) but never run. The README used to say
+NSIS installer, all shipped since v0.1.0) but never run outside the v1.1.0 Arena
+gate (below). The README used to say
 the Windows build had never been compiled and that there was no CI; both were
 wrong — ci.yml and release.yml have both existed since the first release.
 
