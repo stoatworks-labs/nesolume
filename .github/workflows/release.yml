@@ -23,7 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: macos-universal, os: macos-14,       artifact: NESolume.bundle }
+          - { name: macos-universal, os: macos-15,       artifact: NESolume.bundle }
           - { name: windows-x86_64,  os: windows-latest, artifact: NESolume.dll }
     steps:
       - uses: actions/checkout@v7
