@@ -18,6 +18,8 @@ all the ways they went wrong.
 **Video:** [The Amiga, in 57 seconds](https://www.youtube.com/watch?v=Y0gmZVjUg8A)
  · [the nine consoles, from v1.0](https://www.youtube.com/watch?v=a3zUwJ6kPfM)
 
+The [project page](https://stoatworks-labs.com/software/nesolume/) has the downloads, the [user guide](https://stoatworks-labs.com/software/nesolume/guide/) and the video.
+
 ![NES: the 2C02 palette with dither and attribute clash](docs/nes.png)
 
 <sub>The harness test card through the NES: posterised into the 2C02 palette,
